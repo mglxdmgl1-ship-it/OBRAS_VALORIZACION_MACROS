@@ -287,6 +287,7 @@ Public Function ArmarPartes(ByVal conPDF As Boolean, ByVal porEquipo As Boolean)
                 End If
             End If
         Next x
+        If totH > 0 And Abs(hHor - totH) <= 0.05 Then hHor = totH   ' horario redondeado al minuto
         If oper = "" Then oper = eOper(k)
         If nReal = nLin Then
             fuente = "PARTE DIARIO (HORAS REALES)"
@@ -361,6 +362,12 @@ Public Function ArmarPartes(ByVal conPDF As Boolean, ByVal porEquipo As Boolean)
                     trab = trab & "  (" & Trim(t) & ")"
                 End If
                 wsP.Cells(rr, 7).Value = trab
+                If UBound(pV, 2) >= PC_ULT + 2 Then          ' horas DE / A (autollenado)
+                    If Not IsEmpty(pV(i, PC_ULT + 1)) Then
+                        wsP.Cells(rr, 3).Value = Hora(pV(i, PC_ULT + 1))
+                        wsP.Cells(rr, 5).Value = Hora(pV(i, PC_ULT + 2))
+                    End If
+                End If
                 AjustarTexto wsP.Cells(rr, 7), 140, 140, 10
                 wsP.Cells(rr, 14).Value = HorasFila(i)
             Next li

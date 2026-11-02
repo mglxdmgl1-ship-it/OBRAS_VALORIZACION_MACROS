@@ -304,6 +304,7 @@ Public Function ActualizarCuadros(ByVal silencio As Boolean) As String
     AjustarInforme HojaPref("4.11")
     AjustarInforme HojaPref("4.12")
     AjustarInforme HojaPref("4.15")
+    SincronizarAuto                               ' equipos y rubros en AUTOLLENADO
     msg = "Cuadros actualizados (" & MesTexto() & "): " & cN & " ítems en " & rN & " rubros del INV.; " & enEq & " equipos en el 4.15."
     If nDup > 0 Then msg = msg & vbCrLf & "Atención: " & nDup & " ítem(s) con número repetido en INV. (se les agregó -1, -2...)."
     If nNeg > 0 Then msg = msg & vbCrLf & vbCrLf & "SALDO NEGATIVO en " & nNeg & " ítem(s) (revise las salidas del 4.10):" & neg
@@ -687,8 +688,10 @@ End Sub
 Public Sub LeerCuadrosAlmacen()
     ' llena las listas que usan el KARDEX y el BINCARD (ModKardex) a partir de INV. y 4.10
     Dim k As Long, i As Long, d As Long, m As Long, n As Long, q As Double, j As Long, p As Long
+    Dim ped As String, obs As String
     LeerInv
     Leer410
+    LeerAuto
     Set aCol = New Collection
     anCat = cN
     anMov = 0
@@ -743,6 +746,11 @@ Public Sub LeerCuadrosAlmacen()
                         Else
                             vTipo(anMov) = T_SAL
                             vDoc(anMov) = "SALIDA"
+                            ped = ""
+                            obs = ""
+                            AutoSalida cItem(k), rNum(cRub(k)), DiaFecha(d), ped, obs
+                            vPed(anMov) = ped
+                            vObs(anMov) = obs
                         End If
                         ' orden: por ítem, día, ingreso antes que salida
                         If aPrim(k) = 0 Then
@@ -763,7 +771,9 @@ End Sub
 Public Sub LeerPartes415()
     ' llena las listas que usa ArmarPartes (ModPartes) con el combustible y las horas del 4.15
     Dim ws As Worksheet, last As Long, r As Long, d As Long, k As Long, n As Long, g As Double, h As Double
+    Dim horo As Variant
     LeerEquipos
+    LeerAuto
     pnPar = 0
     pnMal = 0
     Set ws = HojaPref("4.15")
@@ -772,17 +782,21 @@ Public Sub LeerPartes415()
     For r = F0Q To last
         If Txt(ws.Cells(r, C_RAS).Value) <> "" Then n = n + 31
     Next r
+    n = n + TotalLineasAuto()
     If n < 1 Then n = 1
     ReDim pR(1 To n): ReDim pEq(1 To n): ReDim pFec(1 To n): ReDim pOrden(1 To n)
-    ReDim pV(1 To n, 1 To PC_ULT)
+    ReDim pV(1 To n, 1 To PC_ULT + 2)            ' + 2: horas DE / A de cada línea (autollenado)
     For r = F0Q To last
         If Txt(ws.Cells(r, C_RAS).Value) <> "" Then
             k = Buscar(eCol, UCase(Txt(ws.Cells(r, C_RAS).Value)))
             If k > 0 Then
+                horo = HorometroInicial(k)
                 For d = 1 To DiasMes()
                     g = Num(ws.Cells(r, D1Q + d - 1).Value)
                     h = Num(ws.Cells(r + 1, D1Q + d - 1).Value)
-                    If g <> 0 Or h <> 0 Then
+                    If (g <> 0 Or h <> 0) And auPartes Then
+                        AutoParte k, DiaFecha(d), g, h, horo
+                    ElseIf g <> 0 Or h <> 0 Then
                         pnPar = pnPar + 1
                         pR(pnPar) = pnPar
                         pEq(pnPar) = k
@@ -950,8 +964,10 @@ Public Sub TraerDatosAnteriores()
             End If
         End If
     Next r
+    TraerSalidasAnteriores itNum                  ' destino y PEDIDO POR -> DETALLE DIARIO
     ' equipos: horas y combustible de la hoja PARTES
     LeerPartesHoja
+    TraerTrabajosAnteriores                       ' trabajos de cada día -> DETALLE DIARIO
     Set w15 = HojaPref("4.15")
     last = w15.UsedRange.Row + w15.UsedRange.Rows.Count
     For r = F0Q To last
@@ -975,9 +991,11 @@ Public Sub TraerDatosAnteriores()
             End If
         End If
     Next r
+    SincronizarAuto
     Fin cm
     Aviso "Listo: " & nItems & " ítems pasaron al INV. 2026 (con su saldo anterior y las entradas y salidas de cada día en el " & _
-          "4.10) y " & nEq & " equipo(s) al 4.15." & vbCrLf & vbCrLf & "Desde ahora registre directamente en el INV., el 4.10 " & _
+          "4.10) y " & nEq & " equipo(s) al 4.15. Los destinos de las salidas y los trabajos de los equipos pasaron a la hoja " & _
+          "DETALLE DIARIO (para el autollenado)." & vbCrLf & vbCrLf & "Desde ahora registre directamente en el INV., el 4.10 " & _
           "y el 4.15.", "TRAER DATOS ANTERIORES"
     HojaPref("4.10").Activate
     Exit Sub

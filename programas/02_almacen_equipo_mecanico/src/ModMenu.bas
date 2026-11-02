@@ -87,6 +87,7 @@ Public Sub CerrarMes()
                         "CERRAR MES", False) Then Exit Sub
     End If
     s = ActualizarCuadros(True)
+    CerrarAuto                                    ' horómetros, tareo y DETALLE DIARIO
     Inicio cm, "Cerrando el mes..."
     CerrarCuadros
     VaciarSalidas
@@ -128,6 +129,7 @@ Public Sub NuevaObra()
     VaciarSalidas
     On Error Resume Next
     VaciarCuadros
+    VaciarAuto
     On Error GoTo 0
     Fin cm
     Hoja("DATOS").Activate
