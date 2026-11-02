@@ -109,6 +109,8 @@ Public Const D_INF415 As String = "C26"
 Public Const D_MSG As String = "C29"
 Public Const D_MSGPDF As String = "C30"
 Public Const D_MSGINF As String = "C31"
+Public Const D_RESID As String = "C40"           ' nombre del residente (informes 4.10 - 4.15)
+Public Const D_SUPER As String = "C41"           ' nombre del supervisor / inspector
 
 ' ---- textos fijos
 Public Const T_ING As String = "INGRESO"
@@ -125,6 +127,7 @@ Public gSinPDF As Boolean                     ' verdadero en las pruebas: no exp
 Public gAcum As Boolean                       ' junta los avisos en gTexto (GENERAR TODO)
 Public gSiATodo As Boolean                    ' pruebas: responde Sí a todas las preguntas
 Public gTexto As String
+Public gCarpetaFija As String                 ' GENERAR TODO: carpeta elegida una sola vez para todos los archivos
 
 
 '========================================================================== LECTURA SEGURA
@@ -559,6 +562,75 @@ Public Function CarpetaSalida(ByVal subc As String) As String
     CarpetaSalida = p
 End Function
 
+Public Function CarpetaDe(ByVal ruta As String) As String
+    Dim k As Long
+    k = InStrRev(ruta, sep())
+    If k > 0 Then CarpetaDe = Left(ruta, k - 1) Else CarpetaDe = ""
+End Function
+
+Public Function RutaSugerida(ByVal subc As String, ByVal archivo As String) As String
+    ' ruta propuesta para «Guardar como»: carpeta de GENERAR TODO o SALIDAS_AAAA_MM\subc
+    Dim c As String
+    If gCarpetaFija <> "" Then
+        RutaSugerida = gCarpetaFija & sep() & archivo
+        Exit Function
+    End If
+    c = CarpetaSalida(subc)
+    If c = "" Then c = RutaLocal(ThisWorkbook.Path)
+    RutaSugerida = c & sep() & archivo
+End Function
+
+Public Function GuardarComo(ByVal sugerido As String, ByVal titulo As String, ByVal tipo As String) As String
+    ' ventana «Guardar como» (PDF o XLSX); devuelve la ruta elegida o "" si se cancela
+    Dim f As Variant, filtro As String
+    GuardarComo = ""
+    If gCarpetaFija <> "" Or gSilencio Then
+        GuardarComo = sugerido
+        Exit Function
+    End If
+    If tipo = "PDF" Then
+        filtro = "Archivo PDF (*.pdf),*.pdf"
+    Else
+        filtro = "Libro de Excel (*.xlsx),*.xlsx"
+    End If
+    On Error GoTo Falla
+    f = Application.GetSaveAsFilename(InitialFileName:=sugerido, FileFilter:=filtro, Title:=titulo)
+    If VarType(f) = vbBoolean Then Exit Function
+    GuardarComo = CStr(f)
+    If tipo = "PDF" And LCase(Right(GuardarComo, 4)) <> ".pdf" Then GuardarComo = GuardarComo & ".pdf"
+    Exit Function
+Falla:
+    GuardarComo = sugerido
+End Function
+
+Public Function SubcarpetaPor(ByVal carpeta As String, ByVal nombre As String, ByVal sufijo As String) As String
+    ' carpeta de los PDF individuales: ...\KARDEX\POR_INSUMO o ...\KARDEX_POR_INSUMO
+    Dim ult As String
+    ult = Mid(carpeta, InStrRev(carpeta, sep()) + 1)
+    If UCase(ult) = UCase(nombre) Then
+        SubcarpetaPor = carpeta & sep() & sufijo
+    Else
+        SubcarpetaPor = carpeta & sep() & nombre & "_" & sufijo
+    End If
+End Function
+
+Public Function ElegirCarpetaDesde(ByVal titulo As String, ByVal inicial As String) As String
+    Dim fd As Object
+    ElegirCarpetaDesde = ""
+    If gSilencio Then
+        ElegirCarpetaDesde = inicial
+        Exit Function
+    End If
+    On Error GoTo Falla
+    Set fd = Application.FileDialog(4)
+    fd.Title = titulo
+    If inicial <> "" Then fd.InitialFileName = inicial & sep()
+    If fd.Show = -1 Then ElegirCarpetaDesde = fd.SelectedItems(1)
+    Exit Function
+Falla:
+    ElegirCarpetaDesde = ""
+End Function
+
 Public Function NombreSeguro(ByVal s As String, ByVal lim As Long) As String
     Dim i As Long, c As String, r As String
     r = ""
@@ -664,13 +736,13 @@ End Sub
 
 Public Function PonerLogo(ByVal ws As Worksheet, ByVal archivo As String, ByVal marco As String) As Boolean
     ' reemplaza la imagen LOGO de la hoja por la del archivo, centrada dentro del marco (celdas)
-    Dim shp As Object, pic As Object, L As Double, t As Double, w As Double, H As Double, r As Double
+    Dim shp As Object, pic As Object, L As Double, t As Double, w As Double, h As Double, r As Double
     PonerLogo = False
     On Error GoTo Falla
     L = ws.Range(marco).Left + 2
     t = ws.Range(marco).Top + 2
     w = ws.Range(marco).Width - 4
-    H = ws.Range(marco).Height - 4
+    h = ws.Range(marco).Height - 4
     Set pic = ws.Shapes.AddPicture(archivo, 0, -1, L, t, -1, -1)
     For Each shp In ws.Shapes
         If shp.Name = "LOGO" Then
@@ -680,11 +752,11 @@ Public Function PonerLogo(ByVal ws As Worksheet, ByVal archivo As String, ByVal 
     Next shp
     pic.LockAspectRatio = -1
     r = w / pic.Width
-    If H / pic.Height < r Then r = H / pic.Height
+    If h / pic.Height < r Then r = h / pic.Height
     pic.Width = pic.Width * r
-    If pic.Height > H Then pic.Height = H
+    If pic.Height > h Then pic.Height = h
     pic.Left = L + (w - pic.Width) / 2
-    pic.Top = t + (H - pic.Height) / 2
+    pic.Top = t + (h - pic.Height) / 2
     pic.Placement = 2
     pic.Name = "LOGO"
     PonerLogo = True

@@ -184,7 +184,7 @@ Public Function ArmarTarjetas(ByVal esKardex As Boolean, ByVal conPdf As Boolean
     Dim desde() As Long, hasta() As Long, carpeta As String, nombre As String, archivo As String, ok As Boolean, nPdf As Long
     Dim area As String, msg As String, cols As Variant, conAnt As Boolean, hojaTxt As String, oc As String
     Dim ent As String, ger As String, sub1 As String, proy As String, f1 As String, f2 As String, f3 As String, f4 As String
-    Dim copObj As Boolean
+    Dim copObj As Boolean, sub2 As String
 
     ArmarTarjetas = 0
     If esKardex Then
@@ -404,23 +404,25 @@ Public Function ArmarTarjetas(ByVal esKardex As Boolean, ByVal conPdf As Boolean
                             "tipo, código del catálogo o cantidad). Revise la columna VERIFICACIÓN."
     If conPdf And nTar > 0 Then
         Estado "Exportando " & nombre & " a PDF..."
-        carpeta = CarpetaSalida(nombre)
-        If carpeta = "" Then
-            msg = msg & vbCrLf & vbCrLf & "No se generó el PDF (no se eligió carpeta)."
+        archivo = GuardarComo(RutaSugerida(nombre, nombre & "_" & MesArchivo() & "_TODOS.pdf"), _
+                              "Guardar el PDF de " & nombre & " (todas las tarjetas) como", "PDF")
+        If archivo = "" Then
+            msg = msg & vbCrLf & vbCrLf & "No se generó el PDF (se canceló «Guardar como»). Las tarjetas están en la hoja " & nombre & "."
         Else
-            archivo = carpeta & sep() & nombre & "_" & MesArchivo() & "_TODOS.pdf"
+            carpeta = CarpetaDe(archivo)
             ok = ExportarPDF(wsK, archivo)
             If ok Then
                 nPdf = 1
                 If porInsumo Then
-                    If CrearCarpeta(carpeta & sep() & "POR_INSUMO") Then
+                    sub2 = SubcarpetaPor(carpeta, nombre, "POR_INSUMO")
+                    If CrearCarpeta(sub2) Then
                         For k = 1 To anCat
                             If desde(k) > 0 Then
                                 Estado "PDF por insumo: " & aCod(k)
                                 On Error Resume Next
                                 wsK.PageSetup.PrintArea = "$B$" & desde(k) & ":$P$" & hasta(k)
                                 On Error GoTo 0
-                                If ExportarPDF(wsK, carpeta & sep() & "POR_INSUMO" & sep() & nombre & "_" & _
+                                If ExportarPDF(wsK, sub2 & sep() & nombre & "_" & _
                                                NombreSeguro(aCod(k) & " " & aDes(k), 70) & ".pdf") Then nPdf = nPdf + 1
                             End If
                         Next k
@@ -429,7 +431,7 @@ Public Function ArmarTarjetas(ByVal esKardex As Boolean, ByVal conPdf As Boolean
                         On Error GoTo 0
                     End If
                 End If
-                msg = msg & vbCrLf & vbCrLf & "PDF generados: " & nPdf & vbCrLf & carpeta
+                msg = msg & vbCrLf & vbCrLf & "PDF generados: " & nPdf & vbCrLf & archivo
                 Mensaje D_MSGPDF, nombre & ": " & nTar & " tarjetas, " & nPdf & " PDF (" & Format(Now, "dd/mm/yyyy hh:mm") & _
                         ") en " & carpeta
             Else

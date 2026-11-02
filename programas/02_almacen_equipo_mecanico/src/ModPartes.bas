@@ -186,7 +186,7 @@ Public Function ArmarPartes(ByVal conPdf As Boolean, ByVal porEquipo As Boolean)
     Dim nReal As Long, nParte As String, oper As String, mDe As String, mA As String, tDe As String, tA As String
     Dim obs As String, fuente As String, nPdf As Long, ok As Boolean, t As String, totPag As Long
     Dim proy As String, cui As String, f3 As String, f4 As String, info As String, combDes As String
-    Dim lineas(1 To 3) As String, resto As String, nl As Long, trab As String, copObj As Boolean
+    Dim lineas(1 To 3) As String, resto As String, nl As Long, trab As String, copObj As Boolean, sub2 As String
 
     ArmarPartes = 0
     Inicio cm, "Armando los partes diarios..."
@@ -418,22 +418,24 @@ Public Function ArmarPartes(ByVal conPdf As Boolean, ByVal porEquipo As Boolean)
                             "código de equipo que no está en EQUIPOS)."
     If conPdf And nG > 0 Then
         Estado "Exportando los partes diarios a PDF..."
-        carpeta = CarpetaSalida("PARTES_DIARIOS")
-        If carpeta = "" Then
-            msg = msg & vbCrLf & vbCrLf & "No se generó el PDF (no se eligió carpeta)."
+        archivo = GuardarComo(RutaSugerida("PARTES_DIARIOS", "PARTES_DIARIOS_" & MesArchivo() & "_TODOS.pdf"), _
+                              "Guardar el PDF de los PARTES DIARIOS como", "PDF")
+        If archivo = "" Then
+            msg = msg & vbCrLf & vbCrLf & "No se generó el PDF (se canceló «Guardar como»). Los partes están en la hoja PARTE_DIARIO."
         Else
-            archivo = carpeta & sep() & "PARTES_DIARIOS_" & MesArchivo() & "_TODOS.pdf"
+            carpeta = CarpetaDe(archivo)
             ok = ExportarPDF(wsP, archivo)
             If ok Then
                 nPdf = 1
                 If porEquipo Then
-                    If CrearCarpeta(carpeta & sep() & "POR_EQUIPO") Then
+                    sub2 = SubcarpetaPor(carpeta, "PARTES_DIARIOS", "POR_EQUIPO")
+                    If CrearCarpeta(sub2) Then
                         For k = 1 To enEq
                             If desde(k) > 0 Then
                                 On Error Resume Next
                                 wsP.PageSetup.PrintArea = "$B$" & desde(k) & ":$P$" & hasta(k)
                                 On Error GoTo 0
-                                If ExportarPDF(wsP, carpeta & sep() & "POR_EQUIPO" & sep() & "PARTES_" & _
+                                If ExportarPDF(wsP, sub2 & sep() & "PARTES_" & _
                                                NombreSeguro(eCod(k) & " " & eDes(k), 70) & ".pdf") Then nPdf = nPdf + 1
                             End If
                         Next k
@@ -442,7 +444,7 @@ Public Function ArmarPartes(ByVal conPdf As Boolean, ByVal porEquipo As Boolean)
                         On Error GoTo 0
                     End If
                 End If
-                msg = msg & vbCrLf & vbCrLf & "PDF generados: " & nPdf & vbCrLf & carpeta
+                msg = msg & vbCrLf & vbCrLf & "PDF generados: " & nPdf & vbCrLf & archivo
                 Mensaje D_MSGPDF, "PARTES DIARIOS: " & nG & " partes, " & nPdf & " PDF (" & Format(Now, "dd/mm/yyyy hh:mm") & _
                         ") en " & carpeta
             Else

@@ -6,9 +6,17 @@ Option Explicit
 '==========================================================================================
 
 Public Sub GenerarTodo()
-    Dim porUno As Boolean, n As Long, s As String
-    porUno = Pregunta("Se procesa el mes y se arman y exportan a PDF los KARDEX, las tarjetas BINCARD y los PARTES DIARIOS." & _
+    Dim porUno As Boolean, n As Long, s As String, carpeta As String, inf As Boolean
+    porUno = Pregunta("Se procesa el mes, se arman los KARDEX, las tarjetas BINCARD y los PARTES DIARIOS y se guardan en PDF." & _
                       vbCrLf & vbCrLf & "¿Desea además un PDF por cada insumo y por cada equipo?", "GENERAR TODO", False)
+    inf = Pregunta("¿Generar también el INFORME MENSUAL de almacén (INV., 4.10, 4.11, 4.12) y de equipo mecánico (4.15)" & _
+                   " en Excel y PDF?", "GENERAR TODO", True)
+    carpeta = ElegirCarpetaDesde("Elija la carpeta donde se guardarán todos los archivos (Guardar en...)", CarpetaSalida(""))
+    If carpeta = "" Then
+        Aviso "Se canceló la elección de la carpeta: no se generó nada.", "GENERAR TODO", 48
+        Exit Sub
+    End If
+    gCarpetaFija = carpeta
     gAcum = True
     gTexto = ""
     On Error GoTo Sale
@@ -17,10 +25,16 @@ Public Sub GenerarTodo()
     n = ArmarTarjetas(True, True, porUno)
     n = ArmarTarjetas(False, True, porUno)
     n = ArmarPartes(True, porUno)
+    If inf Then
+        s = InformeAlmacen(False)
+        s = InformeEquipos(False)
+        ThisWorkbook.Activate
+    End If
 Sale:
     gAcum = False
+    gCarpetaFija = ""
     If Err.Number <> 0 Then gTexto = gTexto & "Error: " & Err.Description
-    Aviso gTexto, "GENERAR TODO"
+    Aviso "Carpeta: " & carpeta & vbCrLf & vbCrLf & gTexto, "GENERAR TODO"
     gTexto = ""
 End Sub
 
@@ -75,7 +89,8 @@ Public Sub CerrarMes()
                     "• El SALDO ACTUAL de cada insumo pasa a SALDO ANTERIOR y el ACUMULADO de cada equipo a " & _
                     "ACUMULADO ANTERIOR." & vbCrLf & _
                     "• Se vacían MOVIMIENTOS y PARTES para registrar el mes siguiente." & vbCrLf & vbCrLf & _
-                    "Antes de cerrar: genere los PDF y envíe los datos al informe. ¿Continuar?", "CERRAR MES", False) Then Exit Sub
+                    "• Los ingresos del mes pasan al historial del inventario (hoja INV. del informe)." & vbCrLf & vbCrLf & _
+                    "Antes de cerrar: genere los PDF y el informe mensual. ¿Continuar?", "CERRAR MES", False) Then Exit Sub
     If Not Pregunta("¿Seguro que desea cerrar " & mesTxt & "? (queda la copia de respaldo)", "CERRAR MES", False) Then Exit Sub
     ruta = Respaldo("CIERRE_" & MesArchivo())
     If ruta = "" Then
@@ -114,6 +129,9 @@ Public Sub CerrarMes()
         ws.Range(ws.Cells(EQ0, EC_ANT), ws.Cells(EQMAX, EC_ANT)).ClearContents
         ws.Range(ws.Cells(EQ0, EC_ANT), ws.Cells(last, EC_ANT)).Value = w
     End If
+    On Error Resume Next
+    GuardarHistorial
+    On Error GoTo 0
     VaciarColumnas Hoja("MOVIMIENTOS"), MV0, MVMAX, Array(MC_FEC, MC_CANT, MC_SALDO), Array(MC_COD, MC_ORIG, MC_SALDO)
     VaciarColumnas Hoja("PARTES"), PT0, PTMAX, Array(PC_FEC, PC_NPARTE, PC_HREAL, PC_COMB, PC_CTRL), _
                    Array(PC_EQ, PC_REND, PC_HREAL, PC_ORIG, PC_CTRL)
@@ -144,7 +162,7 @@ Public Sub NuevaObra()
     ruta = Respaldo("RESPALDO_" & Format(Now, "yyyymmdd_hhmm"))
     Inicio cm, "Vaciando el programa..."
     For Each c In Array(D_ENTIDAD, D_GEREN, D_SUBG, D_PROY, D_CUI, D_META, D_UBIC, D_NINF, D_CARPETA, D_CTRL, D_INF410, _
-                        D_INF415, D_MSG, D_MSGPDF, D_MSGINF)
+                        D_INF415, D_MSG, D_MSGPDF, D_MSGINF, D_RESID, D_SUPER)
         Hoja("DATOS").Range(c).ClearContents
     Next c
     VaciarColumnas Hoja("CATALOGO"), CT0, CTMAX, Array(CC_COD, CC_ACU), Array(CC_SANT, CC_ULT)
@@ -153,6 +171,9 @@ Public Sub NuevaObra()
     VaciarColumnas Hoja("PARTES"), PT0, PTMAX, Array(PC_FEC, PC_NPARTE, PC_HREAL, PC_COMB, PC_CTRL), _
                    Array(PC_EQ, PC_REND, PC_HREAL, PC_ORIG, PC_CTRL)
     VaciarSalidas
+    On Error Resume Next
+    HojaHistorial().Range("A2:J100000").ClearContents
+    On Error GoTo 0
     Fin cm
     Hoja("DATOS").Activate
     If ruta = "" Then
