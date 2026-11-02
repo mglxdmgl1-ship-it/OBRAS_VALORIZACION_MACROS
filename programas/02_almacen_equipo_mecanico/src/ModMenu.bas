@@ -7,7 +7,7 @@ Option Explicit
 
 Public Sub GenerarTodo()
     Dim porUno As Boolean, n As Long, s As String, carpeta As String, inf As Boolean
-    porUno = Pregunta("Se procesa el mes, se arman los KARDEX, las tarjetas BINCARD y los PARTES DIARIOS y se guardan en PDF." & _
+    porUno = Pregunta("Se actualizan los cuadros, se arman los KARDEX, las tarjetas BINCARD y los PARTES DIARIOS y se guardan en PDF." & _
                       vbCrLf & vbCrLf & "¿Desea además un PDF por cada insumo y por cada equipo?", "GENERAR TODO", False)
     inf = Pregunta("¿Generar también el INFORME MENSUAL de almacén (INV., 4.10, 4.11, 4.12) y de equipo mecánico (4.15)" & _
                    " en Excel y PDF?", "GENERAR TODO", True)
@@ -20,14 +20,14 @@ Public Sub GenerarTodo()
     gAcum = True
     gTexto = ""
     On Error GoTo Sale
-    s = Procesar()
-    gTexto = "PROCESAR Y VALIDAR" & vbCrLf & s & vbCrLf & vbCrLf
+    s = ActualizarCuadros(True)
+    gTexto = "ACTUALIZAR CUADROS" & vbCrLf & s & vbCrLf & vbCrLf
     n = ArmarTarjetas(True, True, porUno)
     n = ArmarTarjetas(False, True, porUno)
     n = ArmarPartes(True, porUno)
     If inf Then
-        s = InformeAlmacen(False)
-        s = InformeEquipos(False)
+        s = ExportarInformeAlmacen(False)
+        s = ExportarInformeEquipos(False)
         ThisWorkbook.Activate
     End If
 Sale:
@@ -62,10 +62,10 @@ Falla:
     Respaldo = ""
 End Function
 
-Private Sub VaciarColumnas(ByVal ws As Worksheet, ByVal f0 As Long, ByVal f1 As Long, ByVal desde As Variant, ByVal hasta As Variant)
+Private Sub VaciarColumnas(ByVal ws As Worksheet, ByVal F0 As Long, ByVal f1 As Long, ByVal desde As Variant, ByVal hasta As Variant)
     Dim i As Long
     For i = LBound(desde) To UBound(desde)
-        ws.Range(ws.Cells(f0, desde(i)), ws.Cells(f1, hasta(i))).ClearContents
+        ws.Range(ws.Cells(F0, desde(i)), ws.Cells(f1, hasta(i))).ClearContents
     Next i
 End Sub
 
@@ -81,15 +81,13 @@ Private Sub VaciarSalidas()
 End Sub
 
 Public Sub CerrarMes()
-    Dim cm As Long, ws As Worksheet, last As Long, v As Variant, w As Variant, i As Long, ruta As String, msg As String
-    Dim t As Double, s As String, mesTxt As String
+    Dim cm As Long, ruta As String, msg As String, t As Double, s As String, mesTxt As String
     mesTxt = MesTexto()
     If Not Pregunta("CERRAR EL MES DE " & mesTxt & ":" & vbCrLf & vbCrLf & _
                     "• Se guarda una copia de respaldo del programa." & vbCrLf & _
-                    "• El SALDO ACTUAL de cada insumo pasa a SALDO ANTERIOR y el ACUMULADO de cada equipo a " & _
-                    "ACUMULADO ANTERIOR." & vbCrLf & _
-                    "• Se vacían MOVIMIENTOS y PARTES para registrar el mes siguiente." & vbCrLf & vbCrLf & _
-                    "• Los ingresos del mes pasan al historial del inventario (hoja INV. del informe)." & vbCrLf & vbCrLf & _
+                    "• En el 4.10, el SALDO de cada ítem pasa a SALDO ANTERIOR y se vacían los días." & vbCrLf & _
+                    "• En el 4.15, las horas del mes pasan al ACUMULADO ANTERIOR de EQUIPOS y se vacían los días." & vbCrLf & _
+                    "• El INV. 2026 se conserva (es el inventario de todo el año)." & vbCrLf & vbCrLf & _
                     "Antes de cerrar: genere los PDF y el informe mensual. ¿Continuar?", "CERRAR MES", False) Then Exit Sub
     If Not Pregunta("¿Seguro que desea cerrar " & mesTxt & "? (queda la copia de respaldo)", "CERRAR MES", False) Then Exit Sub
     ruta = Respaldo("CIERRE_" & MesArchivo())
@@ -97,44 +95,9 @@ Public Sub CerrarMes()
         If Not Pregunta("No se pudo guardar la copia de respaldo junto al programa. ¿Cerrar el mes de todos modos?", _
                         "CERRAR MES", False) Then Exit Sub
     End If
+    s = ActualizarCuadros(True)
     Inicio cm, "Cerrando el mes..."
-    Application.Calculate
-    Set ws = Hoja("CATALOGO")
-    last = UltimaFila(ws, CC_COD, CT0, CTMAX)
-    If last >= CT0 Then
-        v = ws.Range(ws.Cells(CT0, CC_COD), ws.Cells(last, CC_COD)).Value
-        w = ws.Range(ws.Cells(CT0, CC_SALDO), ws.Cells(last, CC_SALDO)).Value
-        For i = 1 To UBound(w, 1)
-            If txt(v(i, 1)) <> "" Then
-                w(i, 1) = Redondear(Num(w(i, 1)), 4)
-            Else
-                w(i, 1) = Empty
-            End If
-        Next i
-        ws.Range(ws.Cells(CT0, CC_SANT), ws.Cells(CTMAX, CC_SANT)).ClearContents
-        ws.Range(ws.Cells(CT0, CC_SANT), ws.Cells(last, CC_SANT)).Value = w
-    End If
-    Set ws = Hoja("EQUIPOS")
-    last = UltimaFila(ws, EC_COD, EQ0, EQMAX)
-    If last >= EQ0 Then
-        v = ws.Range(ws.Cells(EQ0, EC_COD), ws.Cells(last, EC_COD)).Value
-        w = ws.Range(ws.Cells(EQ0, 19), ws.Cells(last, 19)).Value
-        For i = 1 To UBound(w, 1)
-            If txt(v(i, 1)) <> "" Then
-                w(i, 1) = Redondear(Num(w(i, 1)), 4)
-            Else
-                w(i, 1) = Empty
-            End If
-        Next i
-        ws.Range(ws.Cells(EQ0, EC_ANT), ws.Cells(EQMAX, EC_ANT)).ClearContents
-        ws.Range(ws.Cells(EQ0, EC_ANT), ws.Cells(last, EC_ANT)).Value = w
-    End If
-    On Error Resume Next
-    GuardarHistorial
-    On Error GoTo 0
-    VaciarColumnas Hoja("MOVIMIENTOS"), MV0, MVMAX, Array(MC_FEC, MC_CANT, MC_SALDO), Array(MC_COD, MC_ORIG, MC_SALDO)
-    VaciarColumnas Hoja("PARTES"), PT0, PTMAX, Array(PC_FEC, PC_NPARTE, PC_HREAL, PC_COMB, PC_CTRL), _
-                   Array(PC_EQ, PC_REND, PC_HREAL, PC_ORIG, PC_CTRL)
+    CerrarCuadros
     VaciarSalidas
     t = MesInicio()
     Hoja("DATOS").Range(D_MES).Value = DateSerial(Year(CDate(t)), Month(CDate(t)) + 1, 1)
@@ -144,19 +107,20 @@ Public Sub CerrarMes()
         Hoja("DATOS").Range(D_NINF).NumberFormat = "@"
         Hoja("DATOS").Range(D_NINF).Value = Format(Val(s) + 1, String(Len(s), "0"))
     End If
+    Fin cm
+    s = ActualizarCuadros(True)
     Mensaje D_MSG, "Mes de " & mesTxt & " cerrado el " & Format(Now, "dd/mm/yyyy hh:mm") & "."
     Mensaje D_MSGPDF, ""
     Mensaje D_MSGINF, ""
-    Fin cm
     msg = "Se cerró " & mesTxt & ". Ahora el programa está en " & MesTexto() & "." & vbCrLf & vbCrLf & _
-          "Los saldos pasaron a SALDO ANTERIOR y los registros quedaron vacíos."
+          "Los saldos pasaron a SALDO ANTERIOR (4.10) y las horas al ACUMULADO ANTERIOR (EQUIPOS); los días quedaron vacíos."
     If ruta <> "" Then msg = msg & vbCrLf & vbCrLf & "Copia de respaldo:" & vbCrLf & ruta
     Aviso msg, "CERRAR MES"
 End Sub
 
 Public Sub NuevaObra()
     Dim cm As Long, ruta As String, c As Variant
-    If Not Pregunta("NUEVA OBRA: se borran los datos de la obra, el CATÁLOGO, los MOVIMIENTOS, los EQUIPOS y los PARTES " & _
+    If Not Pregunta("NUEVA OBRA: se borran los datos de la obra, el INV. 2026, los cuadros 4.10 al 4.15 y los EQUIPOS " & _
                     "(antes se guarda una copia de respaldo)." & vbCrLf & vbCrLf & "¿Continuar?", "NUEVA OBRA", False) Then Exit Sub
     If Not Pregunta("¿Seguro? Se vaciará todo el programa para empezar otra obra.", "NUEVA OBRA", False) Then Exit Sub
     ruta = Respaldo("RESPALDO_" & Format(Now, "yyyymmdd_hhmm"))
@@ -172,7 +136,7 @@ Public Sub NuevaObra()
                    Array(PC_EQ, PC_REND, PC_HREAL, PC_ORIG, PC_CTRL)
     VaciarSalidas
     On Error Resume Next
-    HojaHistorial().Range("A2:J100000").ClearContents
+    VaciarCuadros
     On Error GoTo 0
     Fin cm
     Hoja("DATOS").Activate

@@ -275,7 +275,7 @@ Public Function ImportarControlDe(ByVal ruta As String) As String
     Dim vR As Variant, vA As Variant, vI As Variant, vG As Variant, v As Variant, fechas(1 To 31) As Double
     Dim mesC As Double, nR As Long, nA As Long, nI As Long, nG As Long, last As Long, nm As String, s As String
     Dim opCat As Boolean, opIng As Boolean, opSal As Boolean, opPar As Boolean, colP As Collection, nxtA() As Long
-    Dim kp As String, m As Double, q As Double, cod As String, des As String, und As String, f0 As Long
+    Dim kp As String, m As Double, q As Double, cod As String, des As String, und As String, F0 As Long
     Dim ws As Worksheet, vM As Variant, oM() As Variant, cntM As Long, nRowsM As Long, orig As String, vacia As Boolean
     Dim vP As Variant, oP() As Variant, nP As Long, nRowsP As Long, tk() As Long, tq() As Double, nt As Long
     Dim ej() As Long, ea() As Double, nE As Long, fk() As Long, fq() As Double, nF As Long, best As Long
@@ -394,9 +394,9 @@ Public Function ImportarControlDe(ByVal ruta As String) As String
         For a = nA To 1 Step -1
             kp = Clave(txt(vA(a, 1)))
             If kp <> "" Then
-                f0 = Buscar(colP, kp)
-                nxtA(a) = f0
-                If f0 > 0 Then colP.Remove kp
+                F0 = Buscar(colP, kp)
+                nxtA(a) = F0
+                If F0 > 0 Then colP.Remove kp
                 colP.Add a, kp
             End If
         Next a

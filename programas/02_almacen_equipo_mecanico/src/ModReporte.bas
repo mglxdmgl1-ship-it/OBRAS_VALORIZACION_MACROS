@@ -2,35 +2,54 @@ Attribute VB_Name = "ModReporte"
 Option Explicit
 
 '==========================================================================================
-'  INFORME MENSUAL CON EL FORMATO DEL EJEMPLO (Excel + PDF, con «Guardar como»)
-'   ALMACÉN : INV. (inventario de ingresos), 4.10 MOVIMIENTO DIARIO, 4.11 INGRESOS – EGRESOS,
-'             4.12 SALDO VALORIZADO          (plantillas FMT_INV, FMT_410, FMT_411, FMT_412)
-'   EQUIPOS : 4.15 CONTROL DE EQUIPO MECÁNICO Y COMBUSTIBLE y DETALLE por equipo
-'                                            (plantillas FMT_415 y FMT_DET)
-'  Las plantillas son copias de las hojas del informe de ejemplo; el programa copia sus filas
-'  modelo (rubro, ítem, totales) y escribe los datos del mes.
+'  CUADROS DEL INFORME DENTRO DEL PROGRAMA (como el informe de ejemplo, todo en un solo archivo)
+'   ALMACÉN : INV. 2026  -> se digita: un renglón por ingreso (O/C, P.U., cantidad, fecha); los
+'                           renglones sin unidad ni cantidad son los RUBROS (1, 2, 3...)
+'             4.10 MOV   -> se digita: saldo anterior y las cantidades de cada día (ENTRADA/SALIDA)
+'             4.11 y 4.12 -> se calculan solos con fórmulas
+'   EQUIPOS : EQUIPOS    -> se digita: datos de cada máquina
+'             4.15       -> se digita: combustible (GAL) y horas de cada día
+'  ACTUALIZAR CUADROS arma las filas de 4.10, 4.11, 4.12 y 4.15 con lo que hay en INV. y EQUIPOS,
+'  sin perder lo ya digitado. Kardex, bincard y partes diarios se arman desde estos cuadros.
 '==========================================================================================
 
-Private Const XL_VISIBLE As Long = -1
-Private Const XL_HIDDEN As Long = 0
 Private Const GRIS_DOMINGO As Long = 14277081      ' RGB(217,217,217)
-Private Const OFS As Long = 2000                    ' las filas modelo se copian 2000 filas más abajo en la misma hoja
+Private Const F0 As Long = 13                       ' primera fila de datos de 4.10, 4.11 y 4.12
+Private Const F0Q As Long = 14                      ' primera fila de datos de 4.15
+Private Const D1 As Long = 8                        ' 4.10 / 4.11: columna del día 1 (H)
+Private Const D1Q As Long = 10                      ' 4.15: columna del día 1 (J)
+Private Const C_RAR As Long = 44                    ' 4.15: código en la fila de horas (AR, oculta)
+Private Const C_RAS As Long = 45                    ' 4.15: código en la fila de combustible (AS, oculta)
+Private Const C_RAT As Long = 46                    ' 4.15: código del combustible (AT, oculta)
 
-' ---- datos del almacén preparados para los cuadros
-Private rN As Long                                  ' número de rubros
-Private rNom() As String
-Private iRub() As Long, iNum() As String, iTipo() As String, iIng() As Double, iSal() As Double
-Private dIng() As Double, dSal() As Double          ' (insumo, día)
-Private nFuera As Long
-' ---- historial de ingresos (meses cerrados)
-Private hN As Long
-Private hFec() As Double, hCod() As String, hDoc() As String, hNDoc() As String, hOC() As String, hProc() As String
-Private hCant() As Double
+' ---- inventario leído (INV.)
+Public cN As Long, rN As Long
+Public cItem() As String, cDes() As String, cUnd() As String, cTipo() As String, cReq() As String, cProv() As String
+Public cPU() As Double, cCant() As Double, cFec() As Double, cRub() As Long
+Public rNom() As String, rNum() As String
+Private nDup As Long
+' ---- lo digitado en 4.10 (por ítem)
+Private tN As Long, tCol As Collection
+Private tItem() As String, tG() As Variant, tE() As Variant, tS() As Variant, tUsado() As Boolean
+' ---- lo digitado en 4.15 (por equipo)
+Private qN As Long, qCol As Collection
+Private qCod() As String, qG() As Variant, qH() As Variant
 
 
 '========================================================================== AUXILIARES
+Public Function HojaPref(ByVal pref As String) As Worksheet
+    ' hoja cuyo nombre empieza con pref ("INV.", "4.10", "4.11", "4.12", "4.15")
+    Dim ws As Worksheet
+    For Each ws In ThisWorkbook.Worksheets
+        If UCase(Left(ws.Name, Len(pref))) = UCase(pref) Then
+            Set HojaPref = ws
+            Exit Function
+        End If
+    Next ws
+    Err.Raise 9, , "No se encontró la hoja " & pref
+End Function
+
 Private Function MesNombre(ByVal t As Double) As String
-    ' "Octubre"
     Dim s As String
     s = LCase(NombreMes(t))
     MesNombre = UCase(Left(s, 1)) & Mid(s, 2)
@@ -44,14 +63,12 @@ Private Function DiasMes() As Long
     DiasMes = Day(CDate(MesFin()))
 End Function
 
-Private Function LetraDia(ByVal t As Double) As String
-    LetraDia = Choose(Weekday(CDate(t), vbMonday), "L", "M", "M", "J", "V", "S", "D")
+Private Function DiaFecha(ByVal d As Long) As Double
+    DiaFecha = CDbl(DateSerial(Year(CDate(MesInicio())), Month(CDate(MesInicio())), d))
 End Function
 
-Private Function MesCorto() As String
-    ' "OCT26"
-    MesCorto = Choose(Month(CDate(MesInicio())), "ENE", "FEB", "MAR", "ABR", "MAY", "JUN", "JUL", "AGO", "SET", "OCT", _
-                      "NOV", "DIC") & Right(CStr(Year(CDate(MesInicio()))), 2)
+Private Function LetraDia(ByVal t As Double) As String
+    LetraDia = Choose(Weekday(CDate(t), vbMonday), "L", "M", "M", "J", "V", "S", "D")
 End Function
 
 Private Function Dato(ByVal celda As String) As String
@@ -59,76 +76,56 @@ Private Function Dato(ByVal celda As String) As String
 End Function
 
 Private Function ConDos(ByVal s As String) As String
-    ' ": texto" como en los encabezados del ejemplo
     ConDos = ": " & s
 End Function
 
-Private Function Doc(ByVal s As String) As String
-    ' "O/C N° 04766" -> "O/C 04766"
+Public Function Doc(ByVal s As String) As String
     s = Replace(s, "O/C N° ", "O/C ")
     s = Replace(s, "O/S N° ", "O/S ")
     s = Replace(s, "O/C N°", "O/C ")
     Doc = Trim(s)
 End Function
 
-Private Sub CopiarFilas(ByVal wsT As Worksheet, ByVal a As Long, ByVal b As Long, ByVal ws As Worksheet, ByVal r As Long)
-    ' copia las filas modelo a..b (guardadas en la misma hoja, OFS filas más abajo) a la fila r
+Private Function Dir1(ByVal ws As Worksheet, ByVal r As Long, ByVal c As Long) As String
+    Dir1 = ws.Cells(r, c).Address(False, False)
+End Function
+
+Private Function NumF(ByVal x As Double) As String
+    NumF = Trim(Str(x))
+End Function
+
+Private Sub CopiarDe(ByVal wsT As Worksheet, ByVal a As Long, ByVal b As Long, ByVal ws As Worksheet, ByVal r As Long)
+    ' copia las filas modelo a..b de la plantilla FMT_ a la fila r
     Dim i As Long
-    ws.Rows((a + OFS) & ":" & (b + OFS)).Copy Destination:=ws.Rows(r)
+    wsT.Rows(a & ":" & b).Copy Destination:=ws.Rows(r)
     For i = 0 To b - a
         ws.Rows(r + i).RowHeight = wsT.Rows(a + i).RowHeight
     Next i
 End Sub
 
-Private Function CopiarPlantilla(ByVal nombre As String, ByRef wb As Workbook, ByVal nuevoNombre As String, _
-                                 ByVal m0 As Long, ByVal m1 As Long) As Worksheet
-    ' copia una hoja FMT_ (oculta) al libro del informe; si wb es Nothing crea el libro
-    Dim wsT As Worksheet, ws As Worksheet, vis As Long
-    Set wsT = Hoja(nombre)
-    vis = wsT.Visible
-    wsT.Visible = XL_VISIBLE
-    If wb Is Nothing Then
-        wsT.Copy
-        Set wb = ActiveWorkbook
-        Set ws = wb.Worksheets(1)
-    Else
-        wsT.Copy After:=wb.Worksheets(wb.Worksheets.Count)
-        Set ws = wb.Worksheets(wb.Worksheets.Count)
-    End If
-    wsT.Visible = vis
-    ws.Visible = XL_VISIBLE
-    ' filas modelo (rubro, ítem, totales) guardadas abajo para copiarlas dentro de la misma hoja
-    ws.Rows(m0 & ":" & m1).Copy Destination:=ws.Rows(m0 + OFS)
-    On Error Resume Next
-    ws.Name = nuevoNombre
-    On Error GoTo 0
-    Set CopiarPlantilla = ws
-End Function
-
-Private Sub BorrarSobrantes(ByVal ws As Worksheet, ByVal desde As Long)
-    ' quita las filas modelo que quedaron debajo de lo escrito
-    ws.Rows((OFS + 1) & ":" & (OFS + 80)).Delete
-    ws.Rows(desde & ":" & (desde + 60)).Delete
+Private Sub LimpiarDatos(ByVal ws As Worksheet, ByVal desde As Long)
+    ' borra las filas de datos (desde la fila indicada hasta la última usada)
+    Dim last As Long
+    last = ws.UsedRange.Row + ws.UsedRange.Rows.Count + 5
+    If last < desde + 10 Then last = desde + 10
+    ws.Rows(desde & ":" & last).Delete
 End Sub
 
-Private Sub Domingos(ByVal ws As Worksheet, ByVal col1 As Long, ByVal f0 As Long, ByVal f1 As Long)
-    ' columnas de los domingos en gris (como en el ejemplo); col1 = columna del día 1
+Private Sub Domingos(ByVal ws As Worksheet, ByVal col1 As Long, ByVal f1 As Long, ByVal f2 As Long)
     Dim d As Long
-    If f1 < f0 Then Exit Sub
+    If f2 < f1 Then Exit Sub
     For d = 1 To DiasMes()
-        If Weekday(DateSerial(Year(CDate(MesInicio())), Month(CDate(MesInicio())), d), vbMonday) = 7 Then
-            ws.Range(ws.Cells(f0, col1 + d - 1), ws.Cells(f1, col1 + d - 1)).Interior.Color = GRIS_DOMINGO
+        If Weekday(CDate(DiaFecha(d)), vbMonday) = 7 Then
+            ws.Range(ws.Cells(f1, col1 + d - 1), ws.Cells(f2, col1 + d - 1)).Interior.Color = GRIS_DOMINGO
         End If
     Next d
 End Sub
 
 Private Sub CabeceraDias(ByVal ws As Worksheet, ByVal fLetra As Long, ByVal fNum As Long, ByVal col1 As Long)
-    ' letras (L M M J V S D) y números de los días; oculta los días que no tiene el mes
-    Dim d As Long, t As Double
+    Dim d As Long
     For d = 1 To 31
         If d <= DiasMes() Then
-            t = CDbl(DateSerial(Year(CDate(MesInicio())), Month(CDate(MesInicio())), d))
-            ws.Cells(fLetra, col1 + d - 1).Value = LetraDia(t)
+            ws.Cells(fLetra, col1 + d - 1).Value = LetraDia(DiaFecha(d))
             ws.Cells(fNum, col1 + d - 1).Value = d
             ws.Columns(col1 + d - 1).Hidden = False
         Else
@@ -140,10 +137,851 @@ Private Sub CabeceraDias(ByVal ws As Worksheet, ByVal fLetra As Long, ByVal fNum
 End Sub
 
 Private Function SumaFila(ByVal ws As Worksheet, ByVal r As Long, ByVal c1 As Long, ByVal c2 As Long) As String
-    ' =SUM(Hr:ALr)
-    SumaFila = "=SUM(" & ws.Cells(r, c1).Address(False, False) & ":" & ws.Cells(r, c2).Address(False, False) & ")"
+    SumaFila = "=SUM(" & Dir1(ws, r, c1) & ":" & Dir1(ws, r, c2) & ")"
 End Function
 
+Private Function EsRubro(ByVal ws As Worksheet, ByVal r As Long) As Boolean
+    EsRubro = (txt(ws.Cells(r, 3).Value) = "" And txt(ws.Cells(r, 5).Value) = "" And txt(ws.Cells(r, 6).Value) = "")
+End Function
+
+
+'========================================================================== LECTURA DE INV. Y 4.10
+Public Sub LeerInv()
+    Dim ws As Worksheet, last As Long, r As Long, v As Variant, a As String, b As String, cur As Long, n As Long
+    Dim cnt() As Long, col As New Collection
+    Set ws = HojaPref("INV.")
+    last = UltimaFilaVarias(ws, 1, 2, 2, 6000)
+    n = last
+    If n < 2 Then n = 2
+    ReDim cItem(1 To n): ReDim cDes(1 To n): ReDim cUnd(1 To n): ReDim cTipo(1 To n): ReDim cReq(1 To n)
+    ReDim cProv(1 To n): ReDim cPU(1 To n): ReDim cCant(1 To n): ReDim cFec(1 To n): ReDim cRub(1 To n)
+    ReDim rNom(1 To n): ReDim rNum(1 To n): ReDim cnt(1 To n)
+    cN = 0: rN = 0: nDup = 0: cur = 0
+    If last < 2 Then Exit Sub
+    v = ws.Range("A2:J" & last).Value
+    For r = 1 To UBound(v, 1)
+        a = txt(v(r, 1))
+        b = Limpio(v(r, 2))
+        If a <> "" Or b <> "" Then
+            If txt(v(r, 3)) = "" And txt(v(r, 5)) = "" And txt(v(r, 6)) = "" Then
+                rN = rN + 1
+                rNom(rN) = UCase(b)
+                rNum(rN) = IIf(a = "", CStr(rN), a)
+                cur = rN
+            Else
+                If cur = 0 Then
+                    rN = rN + 1
+                    rNom(rN) = "SIN RUBRO"
+                    rNum(rN) = CStr(rN)
+                    cur = rN
+                End If
+                cnt(cur) = cnt(cur) + 1
+                If a = "" Then a = rNum(cur) & "." & cnt(cur)
+                If Buscar(col, UCase(a)) > 0 Then
+                    nDup = nDup + 1
+                    a = a & "-" & nDup
+                End If
+                cN = cN + 1
+                col.Add cN, UCase(a)
+                cItem(cN) = a
+                cDes(cN) = b
+                cUnd(cN) = txt(v(r, 3))
+                cTipo(cN) = Doc(Limpio(v(r, 4)))
+                cPU(cN) = Num(v(r, 5))
+                cCant(cN) = Num(v(r, 6))
+                cFec(cN) = Fecha(v(r, 8))
+                cReq(cN) = Limpio(v(r, 9))
+                cProv(cN) = Limpio(v(r, 10))
+                cRub(cN) = cur
+            End If
+        End If
+    Next r
+End Sub
+
+Private Sub Leer410()
+    ' cantidades ya digitadas en 4.10, por ítem
+    Dim ws As Worksheet, last As Long, r As Long, d As Long, key As String, n As Long
+    Set ws = HojaPref("4.10")
+    Set tCol = New Collection
+    tN = 0
+    last = UltimaFila(ws, 6, F0, 8000)
+    n = (last - F0 + 2) \ 2
+    If n < 1 Then n = 1
+    ReDim tItem(1 To n): ReDim tG(1 To n): ReDim tE(1 To n, 1 To 31): ReDim tS(1 To n, 1 To 31): ReDim tUsado(1 To n)
+    If last < F0 Then Exit Sub
+    For r = F0 To last
+        If UCase(txt(ws.Cells(r, 6).Value)) = "ENTRADA" Then
+            key = txt(ws.Cells(r, 2).Value)
+            If key <> "" And Buscar(tCol, UCase(key)) = 0 Then
+                tN = tN + 1
+                tItem(tN) = key
+                tG(tN) = ws.Cells(r, 7).Value
+                For d = 1 To 31
+                    tE(tN, d) = ws.Cells(r, D1 + d - 1).Value
+                    tS(tN, d) = ws.Cells(r + 1, D1 + d - 1).Value
+                Next d
+                tCol.Add tN, UCase(key)
+            End If
+        End If
+    Next r
+End Sub
+
+Private Sub Leer415()
+    ' combustible y horas ya digitados en 4.15, por código de equipo
+    Dim ws As Worksheet, last As Long, r As Long, d As Long, key As String, n As Long
+    Set ws = HojaPref("4.15")
+    Set qCol = New Collection
+    qN = 0
+    last = ws.UsedRange.Row + ws.UsedRange.Rows.Count
+    n = last
+    If n < 1 Then n = 1
+    ReDim qCod(1 To n): ReDim qG(1 To n, 1 To 31): ReDim qH(1 To n, 1 To 31)
+    For r = F0Q To last
+        key = txt(ws.Cells(r, C_RAS).Value)
+        If key <> "" And Buscar(qCol, UCase(key)) = 0 Then
+            qN = qN + 1
+            qCod(qN) = key
+            For d = 1 To 31
+                qG(qN, d) = ws.Cells(r, D1Q + d - 1).Value
+                qH(qN, d) = ws.Cells(r + 1, D1Q + d - 1).Value
+            Next d
+            qCol.Add qN, UCase(key)
+        End If
+    Next r
+End Sub
+
+
+'========================================================================== ACTUALIZAR CUADROS
+Public Sub ActualizarCuadrosBoton()
+    Dim s As String
+    s = ActualizarCuadros(False)
+End Sub
+
+Public Function ActualizarCuadros(ByVal silencio As Boolean) As String
+    ' arma 4.10, 4.11, 4.12 y 4.15 con INV. y EQUIPOS, conservando lo digitado; devuelve un resumen
+    Dim cm As Long, msg As String, neg As String, nNeg As Long, perd As String, nPerd As Long, k As Long, i As Long
+    Dim fila410() As Long, d As Long, s As Double
+    ActualizarCuadros = ""
+    Inicio cm, "Actualizando los cuadros 4.10, 4.11, 4.12 y 4.15..."
+    On Error GoTo Falla
+    LeerInv
+    Leer410
+    ReDim fila410(1 To cN + 1)
+    Armar410 fila410
+    Armar411
+    Armar412 fila410
+    Armar415
+    ' saldos negativos y datos de ítems que ya no están en INV.
+    For k = 1 To cN
+        i = Buscar(tCol, UCase(cItem(k)))
+        If i > 0 Then
+            tUsado(i) = True
+            s = Num(tG(i))
+            For d = 1 To 31
+                s = s + Num(tE(i, d)) - Num(tS(i, d))
+            Next d
+            If s < -0.00001 Then
+                nNeg = nNeg + 1
+                If nNeg <= 12 Then neg = neg & vbCrLf & "   " & cItem(k) & "  " & Left(cDes(k), 45) & ":  " & Format(s, "0.00")
+            End If
+        End If
+    Next k
+    For i = 1 To tN
+        If Not tUsado(i) Then
+            For d = 1 To 31
+                If Num(tE(i, d)) <> 0 Or Num(tS(i, d)) <> 0 Then
+                    nPerd = nPerd + 1
+                    If nPerd <= 8 Then perd = perd & " " & tItem(i)
+                    Exit For
+                End If
+            Next d
+        End If
+    Next i
+    Fin cm
+    msg = "Cuadros actualizados (" & MesTexto() & "): " & cN & " ítems en " & rN & " rubros del INV.; " & enEq & " equipos en el 4.15."
+    If nDup > 0 Then msg = msg & vbCrLf & "Atención: " & nDup & " ítem(s) con número repetido en INV. (se les agregó -1, -2...)."
+    If nNeg > 0 Then msg = msg & vbCrLf & vbCrLf & "SALDO NEGATIVO en " & nNeg & " ítem(s) (revise las salidas del 4.10):" & neg
+    If nPerd > 0 Then msg = msg & vbCrLf & vbCrLf & "Atención: había cantidades en el 4.10 de ítems que ya no están en INV.:" & perd & _
+                            " (se quitaron; si fue un cambio de número, vuelva a digitarlas)."
+    Mensaje D_MSG, "Cuadros actualizados el " & Format(Now, "dd/mm/yyyy hh:mm") & ": " & cN & " ítems, " & enEq & _
+                   " equipos, " & nNeg & " con saldo negativo."
+    ActualizarCuadros = msg
+    If Not silencio Then Aviso msg, "ACTUALIZAR CUADROS"
+    Exit Function
+Falla:
+    Fin cm
+    ActualizarCuadros = "No se pudieron actualizar los cuadros: " & Err.Description
+    Aviso ActualizarCuadros, "ACTUALIZAR CUADROS", 16
+End Function
+
+Private Sub Encabezado(ByVal ws As Worksheet, ByVal tit As String, ByVal cP As Long, ByVal cAno As Long, _
+                       ByVal fP As Long, ByVal fMod As Long, ByVal fRes As Long, ByVal fSup As Long, ByVal fAno As Long, _
+                       ByVal fMes As Long)
+    ws.Cells(1, 2).Value = Dato(D_ENTIDAD) & vbLf & Dato(D_GEREN) & vbLf
+    ws.Cells(3, 2).Value = tit & " - " & NombreMes(MesInicio()) & " " & Year(CDate(MesInicio()))
+    ws.Cells(fP, cP).Value = ConDos("“" & Dato(D_PROY) & "”.")
+    ws.Cells(fMod, cP).Value = ConDos(Dato(D_MODAL))
+    ws.Cells(fRes, cP).Value = ConDos(Dato(D_RESID))
+    ws.Cells(fSup, cP).Value = ConDos(Dato(D_SUPER))
+    ws.Cells(fSup, 2).Value = Dato(D_F4)
+    ws.Cells(fAno, cAno).Value = Year(CDate(MesInicio()))
+    ws.Cells(fMes, cAno).Value = MesNombre(MesInicio())
+End Sub
+
+Private Sub Armar410(ByRef fila410() As Long)
+    Dim ws As Worksheet, wsT As Worksheet, r As Long, g As Long, k As Long, i As Long, d As Long, v() As Variant
+    Dim hayE As Boolean
+    Set ws = HojaPref("4.10")
+    Set wsT = Hoja("FMT_410")
+    Encabezado ws, "4.10 CUADRO DE MOVIMIENTO DIARIO DE ALMACEN", 4, 40, 5, 6, 7, 8, 5, 7
+    ws.Cells(10, 7).Value = "SALDO" & vbLf & NombreMes(MesAnterior()) & " " & Year(CDate(MesAnterior()))
+    ws.Cells(10, 39).Value = "TOTAL"
+    ws.Cells(10, 40).Value = "SALDO" & vbLf & NombreMes(MesInicio()) & " " & Year(CDate(MesInicio()))
+    CabeceraDias ws, 10, 11, D1
+    LimpiarDatos ws, F0
+    r = F0
+    For g = 1 To rN
+        CopiarDe wsT, 13, 14, ws, r
+        ws.Cells(r, 2).NumberFormat = "@"
+        ws.Cells(r, 2).Value = rNum(g)
+        ws.Cells(r, 3).Value = rNom(g)
+        r = r + 2
+        For k = 1 To cN
+            If cRub(k) = g Then
+                CopiarDe wsT, 15, 16, ws, r
+                fila410(k) = r
+                ws.Cells(r, 2).NumberFormat = "@"
+                ws.Cells(r, 2).Value = cItem(k)
+                ws.Cells(r, 3).Value = cDes(k)
+                ws.Cells(r, 4).Value = cUnd(k)
+                ws.Cells(r, 5).Value = cTipo(k)
+                ws.Cells(r, 6).Value = "ENTRADA"
+                ws.Cells(r + 1, 6).Value = "SALIDA"
+                ReDim v(1 To 2, 1 To 31)
+                i = Buscar(tCol, UCase(cItem(k)))
+                hayE = False
+                If i > 0 Then
+                    ws.Cells(r, 7).Value = tG(i)
+                    For d = 1 To 31
+                        v(1, d) = tE(i, d)
+                        v(2, d) = tS(i, d)
+                        If Num(tE(i, d)) <> 0 Then hayE = True
+                    Next d
+                End If
+                ' el ingreso del INV. se pone solo en su día (si la fila ENTRADA está vacía)
+                If Not hayE And cCant(k) <> 0 And cFec(k) >= MesInicio() And cFec(k) <= MesFin() Then
+                    v(1, Day(CDate(cFec(k)))) = cCant(k)
+                End If
+                If i = 0 And IsEmpty(ws.Cells(r, 7).Value) Then ws.Cells(r, 7).Value = 0
+                ws.Range(ws.Cells(r, D1), ws.Cells(r + 1, D1 + 30)).Value = v
+                ws.Cells(r, 39).Formula = SumaFila(ws, r, D1, D1 + 30)
+                ws.Cells(r + 1, 39).Formula = SumaFila(ws, r + 1, D1, D1 + 30)
+                ws.Cells(r, 40).Formula = "=" & Dir1(ws, r, 7) & "+" & Dir1(ws, r, 39) & "-" & Dir1(ws, r + 1, 39)
+                r = r + 2
+            End If
+        Next k
+    Next g
+    Domingos ws, D1, F0, r - 1
+    On Error Resume Next
+    ws.PageSetup.PrintArea = "$A$1:$AN$" & IIf(r - 1 < F0, F0, r - 1)
+    ws.PageSetup.PrintTitleRows = "$10:$12"
+    On Error GoTo 0
+End Sub
+
+Private Sub Armar411()
+    ' 4.11: mismas filas que el 4.10, todo con fórmulas que leen el 4.10
+    Dim ws As Worksheet, wsT As Worksheet, w10 As Worksheet, r As Long, last As Long, h As String, c As Long
+    Set ws = HojaPref("4.11")
+    Set wsT = Hoja("FMT_411")
+    Set w10 = HojaPref("4.10")
+    h = "'" & w10.Name & "'!"
+    Encabezado ws, "4.11 CUADRO RESUMEN DE ALMACÉN (INGRESOS – EGRESOS)", 3, 42, 5, 6, 7, 8, 5, 7
+    ws.Cells(10, 7).Value = "SALDO " & NombreMes(MesAnterior()) & " " & Year(CDate(MesAnterior()))
+    ws.Cells(10, 39).Value = "TOTAL"
+    ws.Cells(10, 40).Value = "INGRESOS"
+    ws.Cells(10, 41).Value = "SALIDAS"
+    ws.Cells(10, 42).Value = "SALDO " & NombreMes(MesInicio()) & " " & Year(CDate(MesInicio()))
+    CabeceraDias ws, 10, 11, D1
+    LimpiarDatos ws, F0
+    last = UltimaFila(w10, 6, F0, 8000)
+    r = F0
+    Do While r <= last
+        If txt(w10.Cells(r, 6).Value) = "ENTRADA" Then
+            CopiarDe wsT, 15, 16, ws, r
+            For c = 2 To 7
+                ws.Cells(r, c).Formula = "=" & h & Dir1(w10, r, c) & "&"""""
+            Next c
+            ws.Cells(r, 7).Formula = "=N(" & h & Dir1(w10, r, 7) & ")"
+            ws.Cells(r + 1, 6).Formula = "=" & h & Dir1(w10, r + 1, 6) & "&"""""
+            ws.Range(ws.Cells(r, D1), ws.Cells(r + 1, D1 + 30)).FormulaR1C1 = "=IF(" & h & "RC="""",""""," & h & "RC)"
+            ws.Cells(r, 39).Formula = SumaFila(ws, r, D1, D1 + 30)
+            ws.Cells(r + 1, 39).Formula = SumaFila(ws, r + 1, D1, D1 + 30)
+            ws.Cells(r, 40).Formula = "=" & Dir1(ws, r, 39)
+            ws.Cells(r, 41).Formula = "=" & Dir1(ws, r + 1, 39)
+            ws.Cells(r, 42).Formula = "=" & Dir1(ws, r, 7) & "+" & Dir1(ws, r, 39) & "-" & Dir1(ws, r + 1, 39)
+        Else
+            CopiarDe wsT, 13, 14, ws, r
+            ws.Cells(r, 2).Formula = "=" & h & Dir1(w10, r, 2) & "&"""""
+            ws.Cells(r, 3).Formula = "=" & h & Dir1(w10, r, 3) & "&"""""
+        End If
+        r = r + 2
+    Loop
+    Domingos ws, D1, F0, r - 1
+    On Error Resume Next
+    ws.PageSetup.PrintArea = "$B$1:$AP$" & IIf(r - 1 < F0, F0, r - 1)
+    ws.PageSetup.PrintTitleRows = "$10:$12"
+    On Error GoTo 0
+End Sub
+
+Private Sub Armar412(ByRef fila410() As Long)
+    ' 4.12: saldo anterior, ingresos, salidas y saldo, valorizados con el P.U. del INV.
+    Dim ws As Worksheet, wsT As Worksheet, w10 As Worksheet, r As Long, g As Long, k As Long, f1 As Long, f2 As Long
+    Dim h As String, c As Long, a As Long
+    Set ws = HojaPref("4.12")
+    Set wsT = Hoja("FMT_412")
+    Set w10 = HojaPref("4.10")
+    h = "'" & w10.Name & "'!"
+    Encabezado ws, "4.12 SALDO VALORIZADO DE MATERIALES", 4, 14, 5, 7, 8, 9, 7, 9
+    ws.Cells(11, 7).Value = "SALDO " & NombreMes(MesAnterior()) & " " & Year(CDate(MesAnterior()))
+    ws.Cells(11, 9).Value = "INGRESOS " & NombreMes(MesInicio()) & " " & Year(CDate(MesInicio()))
+    ws.Cells(11, 11).Value = "SALIDAS " & NombreMes(MesInicio()) & " " & Year(CDate(MesInicio()))
+    ws.Cells(11, 13).Value = "SALDO " & NombreMes(MesInicio()) & " " & Year(CDate(MesInicio()))
+    LimpiarDatos ws, F0
+    r = F0
+    f1 = r
+    For g = 1 To rN
+        CopiarDe wsT, 13, 13, ws, r
+        ws.Cells(r, 2).NumberFormat = "@"
+        ws.Cells(r, 2).Value = rNum(g)
+        ws.Cells(r, 3).Value = rNom(g)
+        r = r + 1
+        For k = 1 To cN
+            If cRub(k) = g Then
+                a = fila410(k)
+                CopiarDe wsT, 14, 14, ws, r
+                ws.Cells(r, 2).NumberFormat = "@"
+                ws.Cells(r, 2).Value = cItem(k)
+                ws.Cells(r, 3).Value = cDes(k)
+                ws.Cells(r, 4).Value = cUnd(k)
+                ws.Cells(r, 5).Value = cTipo(k)
+                ws.Cells(r, 6).Value = cPU(k)
+                ws.Cells(r, 7).Formula = "=N(" & h & Dir1(w10, a, 7) & ")"
+                ws.Cells(r, 9).Formula = "=N(" & h & Dir1(w10, a, 39) & ")"
+                ws.Cells(r, 11).Formula = "=N(" & h & Dir1(w10, a + 1, 39) & ")"
+                ws.Cells(r, 13).Formula = "=G" & r & "+I" & r & "-K" & r
+                ws.Cells(r, 8).Formula = "=ROUND($F" & r & "*G" & r & ",2)"
+                ws.Cells(r, 10).Formula = "=ROUND($F" & r & "*I" & r & ",2)"
+                ws.Cells(r, 12).Formula = "=ROUND($F" & r & "*K" & r & ",2)"
+                ws.Cells(r, 14).Formula = "=ROUND($F" & r & "*M" & r & ",2)"
+                r = r + 1
+            End If
+        Next k
+    Next g
+    f2 = r - 1
+    CopiarDe wsT, 15, 20, ws, r
+    ws.Cells(r, 2).Value = "Total"
+    For c = 8 To 14 Step 2
+        If f2 >= f1 Then
+            ws.Cells(r, c).Formula = "=SUM(" & Dir1(ws, f1, c) & ":" & Dir1(ws, f2, c) & ")"
+        Else
+            ws.Cells(r, c).Value = 0
+        End If
+    Next c
+    For c = 0 To 3
+        ws.Cells(r + 2 + c, 12).Value = ws.Cells(11, 7 + 2 * c).Value
+        ws.Cells(r + 2 + c, 14).Formula = "=" & Dir1(ws, r, 8 + 2 * c)
+    Next c
+    On Error Resume Next
+    ws.PageSetup.PrintArea = "$B$1:$N$" & (r + 5)
+    ws.PageSetup.PrintTitleRows = "$11:$12"
+    On Error GoTo 0
+End Sub
+
+Public Function UnidadCorta(ByVal u As String) As String
+    Dim s As String
+    s = Replace(Normal(u), " ", "")
+    If s = "HM" Or s = "H.M." Or s = "H.M" Or s = "HORAMAQUINA" Or s = "" Then
+        UnidadCorta = "H.M."
+    ElseIf s = "HE" Or s = "H.E." Or s = "H.E" Or s = "HORAEQUIPO" Then
+        UnidadCorta = "H.E."
+    ElseIf Left(s, 3) = "DIA" Or s = "D" Then
+        UnidadCorta = "DIA"
+    ElseIf Left(s, 3) = "VIA" Or Left(s, 3) = "VJE" Then
+        UnidadCorta = "VJE"
+    Else
+        UnidadCorta = UCase(Trim(u))
+    End If
+End Function
+
+Private Function FilaEquipo(ByVal cod As String) As Long
+    Dim ws As Worksheet, f As Variant
+    Set ws = Hoja("EQUIPOS")
+    FilaEquipo = 0
+    f = Application.Match(cod, ws.Range(ws.Cells(EQ0, EC_COD), ws.Cells(EQMAX, EC_COD)), 0)
+    If Not IsError(f) Then FilaEquipo = EQ0 + CLng(f) - 1
+End Function
+
+Private Function DescCatalogoR(ByVal cod As String) As String
+    ' nombre del combustible: del INV. (por ítem), del catálogo anterior o el mismo código
+    Dim ws As Worksheet, f As Variant, k As Long
+    DescCatalogoR = cod
+    For k = 1 To cN
+        If UCase(cItem(k)) = UCase(cod) Then
+            DescCatalogoR = UCase(cDes(k))
+            Exit Function
+        End If
+    Next k
+    Set ws = Hoja("CATALOGO")
+    f = Application.Match(cod, ws.Range(ws.Cells(CT0, CC_COD), ws.Cells(CTMAX, CC_COD)), 0)
+    If Not IsError(f) Then DescCatalogoR = UCase(txt(ws.Cells(CT0 + CLng(f) - 1, CC_DES).Value))
+End Function
+
+Private Sub Armar415()
+    Dim ws As Worksheet, wsT As Worksheet, r As Long, k As Long, i As Long, d As Long, sec As Long, n As Long, f1 As Long
+    Dim unid() As String, bloques As Collection, u As Variant, v() As Variant, hayEq As Boolean, secNom As String
+    Dim combCod() As String, nComb As Long, x As Long, cK As Long, fe As Long, fuelF1 As Long, fuelF2 As Long, ent As String
+    LeerEquipos
+    Leer415
+    Set ws = HojaPref("4.15")
+    Set wsT = Hoja("FMT_415")
+    ent = Dato(D_ENTIDAD)
+    ws.Cells(1, 2).Value = ent
+    ws.Cells(5, 2).Value = "CONTROL DE EQUIPO MECANICO Y COMBUSTIBLE CORRESPONDIENTE AL MES DE " & NombreMes(MesInicio()) & _
+                           " " & Year(CDate(MesInicio()))
+    ws.Cells(6, 6).Value = ConDos("“" & Dato(D_PROY) & "”")
+    ws.Cells(8, 6).Value = ConDos(ent)
+    ws.Cells(9, 6).Value = ConDos(Dato(D_MODAL))
+    ws.Cells(10, 6).Value = ConDos(Dato(D_RESID))
+    ws.Cells(11, 2).Value = Dato(D_F4)
+    ws.Cells(11, 6).Value = ConDos(Dato(D_SUPER))
+    LimpiarDatos ws, F0Q
+    For d = 1 To 31
+        ws.Columns(D1Q + d - 1).Hidden = (d > DiasMes())
+    Next d
+    ws.Range(ws.Columns(C_RAR), ws.Columns(C_RAT)).Hidden = True
+    ReDim unid(1 To enEq + 1)
+    For k = 1 To enEq
+        unid(k) = UnidadCorta(eUnd(k))
+    Next k
+    r = F0Q
+    fuelF1 = 0
+    For sec = 1 To 2
+        secNom = IIf(sec = 1, "MAQUINARIAS Y EQUIPOS ALQUILADOS POR SERVICIO (O/S)", "MAQUINARIAS Y EQUIPOS PROPIOS O PRESTADOS")
+        Set bloques = New Collection
+        hayEq = False
+        For k = 1 To enEq
+            If (sec = 1) = (eOS(k) <> "") Then
+                hayEq = True
+                On Error Resume Next
+                bloques.Add unid(k), unid(k)
+                On Error GoTo 0
+            End If
+        Next k
+        If hayEq Then
+            CopiarDe wsT, 14, 15, ws, r
+            ws.Cells(r, 2).Value = secNom
+            r = r + 2
+            For Each u In bloques
+                CopiarDe wsT, 16, 18, ws, r
+                ws.Cells(r, 6).Value = "COMBUS./ " & u
+                If u = "DIA" Then
+                    ws.Cells(r, 8).Value = "TOTAL DIAS": ws.Cells(r, 9).Value = "DIAS ACUM."
+                ElseIf u = "VJE" Then
+                    ws.Cells(r, 8).Value = "TOTAL VIAJES": ws.Cells(r, 9).Value = "VIAJES ACUM."
+                Else
+                    ws.Cells(r, 8).Value = "TOTAL HRS": ws.Cells(r, 9).Value = "HORAS ACUM."
+                End If
+                ws.Cells(r, 10).Value = "MES DE " & NombreMes(MesInicio()) & " " & Year(CDate(MesInicio()))
+                ws.Cells(r, 41).Value = "TOTAL"
+                ws.Cells(r + 1, 41).Value = "COMB."
+                ws.Cells(r + 1, 42).Value = IIf(u = "DIA", "DIAS", u)
+                CabeceraDias ws, r + 1, r + 2, D1Q
+                r = r + 3
+                f1 = r
+                n = 0
+                For k = 1 To enEq
+                    If (sec = 1) = (eOS(k) <> "") And unid(k) = u Then
+                        n = n + 1
+                        CopiarDe wsT, 19, 20, ws, r
+                        If fuelF1 = 0 Then fuelF1 = r
+                        fuelF2 = r + 1
+                        ws.Cells(r, 2).Value = n
+                        ws.Cells(r, 3).Value = eDes(k) & IIf(eSerie(k) <> "", " – " & eSerie(k), "")
+                        ws.Cells(r, 6).Value = "GAL"
+                        ws.Cells(r + 1, 6).Value = IIf(u = "DIA", "DIA", u)
+                        ReDim v(1 To 2, 1 To 31)
+                        i = Buscar(qCol, UCase(eCod(k)))
+                        If i > 0 Then
+                            For d = 1 To 31
+                                v(1, d) = qG(i, d)
+                                v(2, d) = qH(i, d)
+                            Next d
+                        End If
+                        ws.Range(ws.Cells(r, D1Q), ws.Cells(r + 1, D1Q + 30)).Value = v
+                        ws.Cells(r, 41).Formula = SumaFila(ws, r, D1Q, D1Q + 30)
+                        ws.Cells(r + 1, 42).Formula = SumaFila(ws, r + 1, D1Q, D1Q + 30)
+                        fe = FilaEquipo(eCod(k))
+                        If fe > 0 Then
+                            ws.Cells(r, 9).Formula = "=N(EQUIPOS!" & Hoja("EQUIPOS").Cells(fe, EC_ANT).Address & ")+" & Dir1(ws, r + 1, 42)
+                        Else
+                            ws.Cells(r, 9).Formula = "=" & Dir1(ws, r + 1, 42)
+                        End If
+                        ws.Cells(r, 43).Value = eOper(k)
+                        ws.Cells(r, C_RAS).Value = eCod(k)
+                        ws.Cells(r + 1, C_RAR).Value = eCod(k)
+                        ws.Cells(r, C_RAT).Value = eComb(k)
+                        r = r + 2
+                    End If
+                Next k
+                CopiarDe wsT, 21, 22, ws, r
+                ws.Cells(r, 31).Value = "TOTAL: COMBUSTIBLE/ " & IIf(u = "DIA", "DIAS", u)
+                ws.Cells(r, 41).Formula = "=SUM(" & Dir1(ws, f1, 41) & ":" & Dir1(ws, r - 1, 41) & ")"
+                ws.Cells(r, 42).Formula = "=SUM(" & Dir1(ws, f1, 42) & ":" & Dir1(ws, r - 1, 42) & ")"
+                Domingos ws, D1Q, f1, r - 1
+                r = r + 2
+            Next u
+        End If
+    Next sec
+    ' resumen de combustible por día y tipo (fórmulas)
+    ReDim combCod(1 To enEq + 1)
+    For k = 1 To enEq
+        If eComb(k) <> "" Then
+            cK = 0
+            For x = 1 To nComb
+                If UCase(combCod(x)) = UCase(eComb(k)) Then cK = x
+            Next x
+            If cK = 0 Then
+                nComb = nComb + 1
+                combCod(nComb) = eComb(k)
+            End If
+        End If
+    Next k
+    If nComb > 0 And fuelF1 > 0 Then
+        CopiarDe wsT, 23, 24, ws, r
+        CabeceraDias ws, r, r + 1, D1Q
+        ws.Cells(r, 41).Value = "COMB."
+        r = r + 2
+        For x = 1 To nComb
+            CopiarDe wsT, 25, 25, ws, r
+            ws.Cells(r, 2).Value = DescCatalogoR(combCod(x))
+            ws.Range(ws.Cells(r, D1Q), ws.Cells(r, D1Q + 30)).FormulaR1C1 = "=SUMIF(R" & fuelF1 & "C" & C_RAT & ":R" & fuelF2 & _
+                "C" & C_RAT & ",""" & combCod(x) & """,R" & fuelF1 & "C:R" & fuelF2 & "C)"
+            ws.Cells(r, 41).Formula = SumaFila(ws, r, D1Q, D1Q + 30)
+            r = r + 1
+        Next x
+    End If
+    On Error Resume Next
+    ws.PageSetup.PrintArea = "$A$1:$AP$" & IIf(r - 1 < F0Q, F0Q, r - 1)
+    ws.PageSetup.PrintTitleRows = "$1:$12"
+    On Error GoTo 0
+End Sub
+
+
+'========================================================================== DATOS PARA KARDEX, BINCARD Y PARTES
+Public Sub LeerCuadrosAlmacen()
+    ' llena las listas que usan el KARDEX y el BINCARD (ModKardex) a partir de INV. y 4.10
+    Dim k As Long, i As Long, d As Long, m As Long, n As Long, q As Double, j As Long, p As Long
+    LeerInv
+    Leer410
+    Set aCol = New Collection
+    anCat = cN
+    anMov = 0
+    anMal = 0
+    n = cN
+    If n < 1 Then n = 1
+    ReDim aCod(1 To n): ReDim aDes(1 To n): ReDim aUnd(1 To n): ReDim aGru(1 To n)
+    ReDim aPU(1 To n): ReDim aAnt(1 To n): ReDim aPrim(1 To n): ReDim aUlt(1 To n): ReDim aCntMov(1 To n)
+    m = 0
+    For k = 1 To cN
+        aCod(k) = cItem(k)
+        aDes(k) = cDes(k)
+        aUnd(k) = cUnd(k)
+        aGru(k) = rNom(cRub(k))
+        aPU(k) = cPU(k)
+        aCol.Add k, UCase(cItem(k))
+        i = Buscar(tCol, UCase(cItem(k)))
+        If i > 0 Then
+            aAnt(k) = Num(tG(i))
+            For d = 1 To 31
+                If Num(tE(i, d)) <> 0 Then m = m + 1
+                If Num(tS(i, d)) <> 0 Then m = m + 1
+            Next d
+        End If
+    Next k
+    If m < 1 Then m = 1
+    ReDim vFec(1 To m): ReDim vTipo(1 To m): ReDim vDoc(1 To m): ReDim vNDoc(1 To m): ReDim vOC(1 To m)
+    ReDim vProc(1 To m): ReDim vPart(1 To m): ReDim vPed(1 To m): ReDim vObs(1 To m)
+    ReDim vCant(1 To m): ReDim vItem(1 To m): ReDim vFila(1 To m): ReDim vSig(1 To m): ReDim vOrden(1 To m)
+    For k = 1 To cN
+        i = Buscar(tCol, UCase(cItem(k)))
+        If i > 0 Then
+            For d = 1 To DiasMes()
+                For p = 1 To 2
+                    If p = 1 Then q = Num(tE(i, d)) Else q = Num(tS(i, d))
+                    If q <> 0 Then
+                        anMov = anMov + 1
+                        vFec(anMov) = DiaFecha(d)
+                        vItem(anMov) = k
+                        vCant(anMov) = Abs(q)
+                        If p = 1 Then
+                            vTipo(anMov) = T_ING
+                            vOC(anMov) = ""
+                            If UCase(Left(cTipo(k), 3)) = "O/C" Or UCase(Left(cTipo(k), 3)) = "O/S" Then
+                                vDoc(anMov) = Left(cTipo(k), 3)
+                                vNDoc(anMov) = Trim(Mid(cTipo(k), 4))
+                            Else
+                                vDoc(anMov) = cTipo(k)
+                                vNDoc(anMov) = cReq(k)
+                            End If
+                            vObs(anMov) = cProv(k)
+                        Else
+                            vTipo(anMov) = T_SAL
+                            vDoc(anMov) = "SALIDA"
+                        End If
+                        ' orden: por ítem, día, ingreso antes que salida
+                        If aPrim(k) = 0 Then
+                            aPrim(k) = anMov
+                        Else
+                            vSig(aUlt(k)) = anMov
+                        End If
+                        aUlt(k) = anMov
+                        aCntMov(k) = aCntMov(k) + 1
+                        vOrden(anMov) = anMov
+                    End If
+                Next p
+            Next d
+        End If
+    Next k
+End Sub
+
+Public Sub LeerPartes415()
+    ' llena las listas que usa ArmarPartes (ModPartes) con el combustible y las horas del 4.15
+    Dim ws As Worksheet, last As Long, r As Long, d As Long, k As Long, n As Long, g As Double, h As Double
+    LeerEquipos
+    pnPar = 0
+    pnMal = 0
+    Set ws = HojaPref("4.15")
+    last = ws.UsedRange.Row + ws.UsedRange.Rows.Count
+    n = 0
+    For r = F0Q To last
+        If txt(ws.Cells(r, C_RAS).Value) <> "" Then n = n + 31
+    Next r
+    If n < 1 Then n = 1
+    ReDim pR(1 To n): ReDim pEq(1 To n): ReDim pFec(1 To n): ReDim pOrden(1 To n)
+    ReDim pV(1 To n, 1 To PC_ULT)
+    For r = F0Q To last
+        If txt(ws.Cells(r, C_RAS).Value) <> "" Then
+            k = Buscar(eCol, UCase(txt(ws.Cells(r, C_RAS).Value)))
+            If k > 0 Then
+                For d = 1 To DiasMes()
+                    g = Num(ws.Cells(r, D1Q + d - 1).Value)
+                    h = Num(ws.Cells(r + 1, D1Q + d - 1).Value)
+                    If g <> 0 Or h <> 0 Then
+                        pnPar = pnPar + 1
+                        pR(pnPar) = pnPar
+                        pEq(pnPar) = k
+                        pFec(pnPar) = DiaFecha(d)
+                        pOrden(pnPar) = pnPar
+                        pV(pnPar, PC_FEC) = CDate(DiaFecha(d))
+                        pV(pnPar, PC_EQ) = eCod(k)
+                        pV(pnPar, PC_OPER) = eOper(k)
+                        pV(pnPar, PC_TRAB) = ""
+                        If h <> 0 Then pV(pnPar, PC_HREAL) = h Else pV(pnPar, PC_HREAL) = 0
+                        pV(pnPar, PC_COMB) = g
+                    End If
+                Next d
+            Else
+                pnMal = pnMal + 1
+            End If
+        End If
+    Next r
+End Sub
+
+
+'========================================================================== CIERRE DEL MES Y NUEVA OBRA
+Public Sub CerrarCuadros()
+    ' saldo del mes -> saldo anterior (4.10); horas del mes -> acumulado anterior (EQUIPOS); vacía los días
+    Dim ws As Worksheet, last As Long, r As Long, s As Double, fe As Long, we As Worksheet
+    Set ws = HojaPref("4.10")
+    Application.Calculate
+    last = UltimaFila(ws, 6, F0, 8000)
+    For r = F0 To last
+        If txt(ws.Cells(r, 6).Value) = "ENTRADA" Then
+            s = Num(ws.Cells(r, 7).Value) + Application.WorksheetFunction.Sum(ws.Range(ws.Cells(r, D1), ws.Cells(r, D1 + 30))) - _
+                Application.WorksheetFunction.Sum(ws.Range(ws.Cells(r + 1, D1), ws.Cells(r + 1, D1 + 30)))
+            ws.Cells(r, 7).Value = Redondear(s, 4)
+            ws.Range(ws.Cells(r, D1), ws.Cells(r + 1, D1 + 30)).ClearContents
+        End If
+    Next r
+    Set ws = HojaPref("4.15")
+    Set we = Hoja("EQUIPOS")
+    last = ws.UsedRange.Row + ws.UsedRange.Rows.Count
+    For r = F0Q To last
+        If txt(ws.Cells(r, C_RAS).Value) <> "" Then
+            fe = FilaEquipo(txt(ws.Cells(r, C_RAS).Value))
+            If fe > 0 Then
+                we.Cells(fe, EC_ANT).Value = Redondear(Num(we.Cells(fe, EC_ANT).Value) + _
+                    Application.WorksheetFunction.Sum(ws.Range(ws.Cells(r + 1, D1Q), ws.Cells(r + 1, D1Q + 30))), 4)
+            End If
+            ws.Range(ws.Cells(r, D1Q), ws.Cells(r + 1, D1Q + 30)).ClearContents
+        End If
+    Next r
+End Sub
+
+Public Sub VaciarCuadros()
+    ' NUEVA OBRA: inventario y cuadros vacíos
+    Dim ws As Worksheet, last As Long
+    Set ws = HojaPref("INV.")
+    last = UltimaFilaVarias(ws, 1, 10, 2, 6000)
+    If last >= 2 Then ws.Range("A2:J" & last).ClearContents
+    On Error Resume Next
+    ws.Range("G2:G" & Application.WorksheetFunction.Max(last, 301)).Formula = "=IF(F2="""","""",E2*F2)"
+    On Error GoTo 0
+    LimpiarDatos HojaPref("4.10"), F0
+    LimpiarDatos HojaPref("4.11"), F0
+    LimpiarDatos HojaPref("4.12"), F0
+    LimpiarDatos HojaPref("4.15"), F0Q
+End Sub
+
+
+'========================================================================== TRAER LOS DATOS DEL FORMATO ANTERIOR
+Public Sub TraerDatosAnteriores()
+    ' pasa CATALOGO + MOVIMIENTOS (y PARTES) del formato anterior al INV., al 4.10 y al 4.15
+    Dim cm As Long, ws As Worksheet, w10 As Worksheet, g As Long, k As Long, r As Long, m As Long, d As Long
+    Dim grupos As New Collection, gNom() As String, nG As Long, cnt() As Long, itNum() As String, i As Long, j As Long
+    Dim ing As Double, fec As Double, tipo As String, prov As String, last As Long, v() As Variant, lo As Object
+    Dim nItems As Long, nEq As Long, x As Long, hh() As Double, cc() As Double, w15 As Worksheet
+    If Not Pregunta("Se copian los datos del formato anterior (hojas CATALOGO, MOVIMIENTOS y PARTES) al INV. 2026, " & _
+                    "al 4.10 y al 4.15." & vbCrLf & vbCrLf & "Lo que hoy está en el INV. y en los cuadros se reemplaza. ¿Continuar?", _
+                    "TRAER DATOS ANTERIORES", False) Then Exit Sub
+    Inicio cm, "Pasando los datos al INV. y a los cuadros..."
+    On Error GoTo Falla
+    LeerAlmacenCatalogo
+    Set ws = HojaPref("INV.")
+    last = UltimaFilaVarias(ws, 1, 10, 2, 6000)
+    If last >= 2 Then ws.Range("A2:J" & last).ClearContents
+    ReDim gNom(1 To anCat + 1): ReDim cnt(1 To anCat + 1): ReDim itNum(1 To anCat + 1)
+    For k = 1 To anCat
+        g = Buscar(grupos, Normal(IIf(aGru(k) = "", "OTROS", aGru(k))))
+        If g = 0 Then
+            nG = nG + 1
+            gNom(nG) = UCase(IIf(aGru(k) = "", "OTROS", aGru(k)))
+            grupos.Add nG, Normal(gNom(nG))
+        End If
+    Next k
+    r = 2
+    For g = 1 To nG
+        ws.Cells(r, 1).NumberFormat = "@"
+        ws.Cells(r, 1).Value = CStr(g)
+        ws.Cells(r, 2).Value = gNom(g)
+        r = r + 1
+        For k = 1 To anCat
+            If Normal(IIf(aGru(k) = "", "OTROS", aGru(k))) = Normal(gNom(g)) Then
+                cnt(g) = cnt(g) + 1
+                itNum(k) = g & "." & cnt(g)
+                ing = 0: fec = 0: tipo = "": prov = ""
+                m = aPrim(k)
+                Do While m > 0
+                    If vTipo(m) = T_ING Then
+                        ing = ing + vCant(m)
+                        If fec = 0 Then
+                            fec = vFec(m)
+                            If vOC(m) <> "" Then tipo = Doc(vOC(m)) Else tipo = vDoc(m)
+                            prov = vProc(m)
+                        End If
+                    End If
+                    m = vSig(m)
+                Loop
+                ws.Cells(r, 1).NumberFormat = "@"
+                ws.Cells(r, 1).Value = itNum(k)
+                ws.Cells(r, 2).Value = aDes(k)
+                ws.Cells(r, 3).Value = aUnd(k)
+                ws.Cells(r, 4).Value = tipo
+                ws.Cells(r, 5).Value = aPU(k)
+                If ing <> 0 Then ws.Cells(r, 6).Value = ing
+                ws.Cells(r, 7).Formula = "=IF(F" & r & "="""","""",E" & r & "*F" & r & ")"
+                If fec > 0 Then ws.Cells(r, 8).Value = CDate(fec)
+                ws.Cells(r, 10).Value = prov
+                nItems = nItems + 1
+                r = r + 1
+            End If
+        Next k
+    Next g
+    On Error Resume Next
+    Set lo = ws.ListObjects(1)
+    If Not lo Is Nothing Then
+        If lo.Range.Rows.Count < r - 1 Then lo.Resize ws.Range("A1:J" & (r - 1))
+    End If
+    On Error GoTo Falla
+    ' arma los cuadros y luego copia las cantidades por día
+    Fin cm
+    ActualizarCuadros True
+    Inicio cm, "Copiando las cantidades por día..."
+    Set w10 = HojaPref("4.10")
+    last = UltimaFila(w10, 6, F0, 8000)
+    For r = F0 To last
+        If txt(w10.Cells(r, 6).Value) = "ENTRADA" Then
+            k = 0
+            For j = 1 To anCat
+                If itNum(j) = txt(w10.Cells(r, 2).Value) Then k = j: Exit For
+            Next j
+            If k > 0 Then
+                ReDim v(1 To 2, 1 To 31)
+                m = aPrim(k)
+                Do While m > 0
+                    If vFec(m) >= MesInicio() And vFec(m) <= MesFin() Then
+                        d = Day(CDate(vFec(m)))
+                        If vTipo(m) = T_ING Then
+                            v(1, d) = Num(v(1, d)) + vCant(m)
+                        Else
+                            v(2, d) = Num(v(2, d)) + vCant(m)
+                        End If
+                    End If
+                    m = vSig(m)
+                Loop
+                w10.Cells(r, 7).Value = Redondear(aAnt(k), 4)
+                w10.Range(w10.Cells(r, D1), w10.Cells(r + 1, D1 + 30)).Value = v
+            End If
+        End If
+    Next r
+    ' equipos: horas y combustible de la hoja PARTES
+    LeerPartesHoja
+    Set w15 = HojaPref("4.15")
+    last = w15.UsedRange.Row + w15.UsedRange.Rows.Count
+    For r = F0Q To last
+        If txt(w15.Cells(r, C_RAS).Value) <> "" Then
+            k = Buscar(eCol, UCase(txt(w15.Cells(r, C_RAS).Value)))
+            If k > 0 Then
+                ReDim v(1 To 2, 1 To 31)
+                For x = 1 To pnPar
+                    If pEq(x) = k And pFec(x) >= MesInicio() And pFec(x) <= MesFin() Then
+                        d = Day(CDate(pFec(x)))
+                        v(1, d) = Num(v(1, d)) + Num(pV(pR(x), PC_COMB))
+                        v(2, d) = Num(v(2, d)) + HorasFila(pR(x))
+                    End If
+                Next x
+                For d = 1 To 31
+                    If Num(v(1, d)) = 0 Then v(1, d) = Empty
+                    If Num(v(2, d)) = 0 Then v(2, d) = Empty
+                Next d
+                w15.Range(w15.Cells(r, D1Q), w15.Cells(r + 1, D1Q + 30)).Value = v
+                nEq = nEq + 1
+            End If
+        End If
+    Next r
+    Fin cm
+    Aviso "Listo: " & nItems & " ítems pasaron al INV. 2026 (con su saldo anterior y las entradas y salidas de cada día en el " & _
+          "4.10) y " & nEq & " equipo(s) al 4.15." & vbCrLf & vbCrLf & "Desde ahora registre directamente en el INV., el 4.10 " & _
+          "y el 4.15.", "TRAER DATOS ANTERIORES"
+    HojaPref("4.10").Activate
+    Exit Sub
+Falla:
+    Fin cm
+    Aviso "No se pudieron traer los datos: " & Err.Description, "TRAER DATOS ANTERIORES", 16
+End Sub
+
+
+'========================================================================== EXPORTAR EL INFORME (Excel + PDF, «Guardar como»)
 Private Function NombreArchivoInforme(ByVal tema As String) As String
     Dim n As String
     n = Dato(D_NINF)
@@ -154,7 +992,6 @@ End Function
 
 Private Function GuardarLibro(ByVal wb As Workbook, ByVal tema As String, ByRef rutaPdf As String, _
                               ByVal preguntarPdf As Boolean) As String
-    ' «Guardar como» del libro del informe (y PDF); devuelve la ruta del Excel o ""
     Dim ruta As String, conPdf As Boolean
     GuardarLibro = ""
     rutaPdf = ""
@@ -183,762 +1020,46 @@ Falla:
           "¿Hay un archivo con ese nombre abierto en Excel?", tema, 48
 End Function
 
-
-'========================================================================== HISTORIAL DE INGRESOS
-Public Function HojaHistorial() As Worksheet
-    ' hoja oculta con los ingresos de los meses cerrados (para el inventario INV.)
-    Dim ws As Worksheet
+Private Function Exportar(ByVal hojas As Variant, ByVal tema As String, ByVal preguntarPdf As Boolean) As String
+    Dim wb As Workbook, ruta As String, rutaPdf As String, msg As String, l As Variant
+    Exportar = ""
+    ThisWorkbook.Worksheets(hojas).Copy
+    Set wb = ActiveWorkbook
     On Error Resume Next
-    Set ws = ThisWorkbook.Worksheets("HIST_INGRESOS")
+    l = wb.LinkSources(1)
+    If Not IsEmpty(l) Then wb.BreakLink Name:=ThisWorkbook.FullName, Type:=1
     On Error GoTo 0
-    If ws Is Nothing Then
-        Set ws = ThisWorkbook.Worksheets.Add(After:=ThisWorkbook.Worksheets(ThisWorkbook.Worksheets.Count))
-        ws.Name = "HIST_INGRESOS"
-        ws.Range("A1:J1").Value = Array("FECHA", "CÓDIGO", "DESCRIPCIÓN", "UND.", "DOCUMENTO", "N° DOCUMENTO", "O/C – O/S", _
-                                        "PROCEDENCIA", "CANTIDAD", "MES")
-        ws.Range("A1:J1").Font.Bold = True
-        ws.Visible = XL_HIDDEN
-    End If
-    Set HojaHistorial = ws
-End Function
-
-Public Sub GuardarHistorial()
-    ' al CERRAR MES: pasa los ingresos del mes al historial
-    Dim ws As Worksheet, r As Long, m As Long, j As Long
-    LeerAlmacen
-    If anMov = 0 Then Exit Sub
-    Set ws = HojaHistorial()
-    r = ws.Cells(ws.Rows.Count, 1).End(-4162).Row + 1
-    If r < 2 Then r = 2
-    For j = 1 To anMov
-        m = vOrden(j)
-        If vTipo(m) = T_ING Then
-            ws.Cells(r, 1).Value = CDate(vFec(m))
-            ws.Cells(r, 2).Value = aCod(vItem(m))
-            ws.Cells(r, 3).Value = aDes(vItem(m))
-            ws.Cells(r, 4).Value = aUnd(vItem(m))
-            ws.Cells(r, 5).Value = vDoc(m)
-            ws.Cells(r, 6).NumberFormat = "@"
-            ws.Cells(r, 6).Value = vNDoc(m)
-            ws.Cells(r, 7).Value = vOC(m)
-            ws.Cells(r, 8).Value = vProc(m)
-            ws.Cells(r, 9).Value = vCant(m)
-            ws.Cells(r, 10).Value = MesArchivo()
-            r = r + 1
-        End If
-    Next j
-End Sub
-
-Private Sub LeerHistorial()
-    Dim ws As Worksheet, v As Variant, last As Long, i As Long
-    hN = 0
-    ReDim hFec(1 To 1): ReDim hCod(1 To 1): ReDim hDoc(1 To 1): ReDim hNDoc(1 To 1)
-    ReDim hOC(1 To 1): ReDim hProc(1 To 1): ReDim hCant(1 To 1)
-    On Error Resume Next
-    Set ws = ThisWorkbook.Worksheets("HIST_INGRESOS")
-    On Error GoTo 0
-    If ws Is Nothing Then Exit Sub
-    last = ws.Cells(ws.Rows.Count, 2).End(-4162).Row
-    If last < 2 Then Exit Sub
-    v = ws.Range("A2:J" & last).Value
-    ReDim hFec(1 To UBound(v, 1)): ReDim hCod(1 To UBound(v, 1)): ReDim hDoc(1 To UBound(v, 1))
-    ReDim hNDoc(1 To UBound(v, 1)): ReDim hOC(1 To UBound(v, 1)): ReDim hProc(1 To UBound(v, 1))
-    ReDim hCant(1 To UBound(v, 1))
-    For i = 1 To UBound(v, 1)
-        If txt(v(i, 2)) <> "" Then
-            ' no repetir el mes que se está informando (si se reabrió)
-            If txt(v(i, 10)) <> MesArchivo() Then
-                hN = hN + 1
-                hFec(hN) = Fecha(v(i, 1))
-                hCod(hN) = txt(v(i, 2))
-                hDoc(hN) = txt(v(i, 5))
-                hNDoc(hN) = txt(v(i, 6))
-                hOC(hN) = txt(v(i, 7))
-                hProc(hN) = txt(v(i, 8))
-                hCant(hN) = Num(v(i, 9))
-            End If
-        End If
-    Next i
-End Sub
-
-
-'========================================================================== PREPARAR LOS DATOS DEL ALMACÉN
-Private Sub PrepararAlmacen()
-    Dim k As Long, g As Long, m As Long, d As Long, cnt() As Long, f As Variant, ws As Worksheet, last As Long
-    Dim t0 As Double, t1 As Double, i As Long, fue As String
-    LeerAlmacen
-    LeerHistorial
-    ReDim rNom(1 To anCat + 1)
-    ReDim iRub(1 To anCat + 1)
-    ReDim iNum(1 To anCat + 1)
-    ReDim iTipo(1 To anCat + 1)
-    ReDim iIng(1 To anCat + 1)
-    ReDim iSal(1 To anCat + 1)
-    ReDim dIng(1 To anCat + 1, 1 To 31)
-    ReDim dSal(1 To anCat + 1, 1 To 31)
-    ReDim cnt(1 To anCat + 1)
-    rN = 0
-    nFuera = 0
-    For k = 1 To anCat
-        g = 0
-        For i = 1 To rN
-            If Normal(rNom(i)) = Normal(IIf(aGru(k) = "", "OTROS", aGru(k))) Then g = i: Exit For
-        Next i
-        If g = 0 Then
-            rN = rN + 1
-            rNom(rN) = UCase(IIf(aGru(k) = "", "OTROS", aGru(k)))
-            g = rN
-        End If
-        iRub(k) = g
-        cnt(g) = cnt(g) + 1
-        iNum(k) = g & "." & cnt(g)
-    Next k
-    ' movimientos por día
-    t0 = MesInicio()
-    t1 = MesFin()
-    For k = 1 To anCat
-        m = aPrim(k)
-        Do While m > 0
-            If vFec(m) >= t0 And vFec(m) <= t1 Then
-                d = Day(CDate(vFec(m)))
-                If vTipo(m) = T_ING Then
-                    dIng(k, d) = dIng(k, d) + vCant(m)
-                    iIng(k) = iIng(k) + vCant(m)
-                Else
-                    dSal(k, d) = dSal(k, d) + vCant(m)
-                    iSal(k) = iSal(k) + vCant(m)
-                End If
-            Else
-                nFuera = nFuera + 1
-            End If
-            If iTipo(k) = "" And vTipo(m) = T_ING Then
-                If vOC(m) <> "" Then
-                    iTipo(k) = Doc(vOC(m))
-                Else
-                    iTipo(k) = vDoc(m)
-                End If
-            End If
-            m = vSig(m)
-        Loop
-    Next k
-    ' tipo de documento desde el historial o la fuente del P.U.
-    Set ws = Hoja("CATALOGO")
-    For k = 1 To anCat
-        If iTipo(k) = "" Then
-            For i = 1 To hN
-                If UCase(hCod(i)) = UCase(aCod(k)) Then
-                    If hOC(i) <> "" Then iTipo(k) = Doc(hOC(i)) Else iTipo(k) = hDoc(i)
-                    Exit For
-                End If
-            Next i
-        End If
-        If iTipo(k) = "" Then
-            f = Application.Match(aCod(k), ws.Range(ws.Cells(CT0, CC_COD), ws.Cells(CTMAX, CC_COD)), 0)
-            If Not IsError(f) Then
-                fue = txt(ws.Cells(CT0 + CLng(f) - 1, CC_FUE).Value)
-                If UCase(Left(fue, 3)) = "O/C" Or UCase(Left(fue, 3)) = "O/S" Then iTipo(k) = Doc(fue)
-            End If
-        End If
-    Next k
-End Sub
-
-
-'========================================================================== INFORME DE ALMACÉN
-Public Sub GenerarInformeAlmacen()
-    Dim r As String
-    r = InformeAlmacen(True)
-End Sub
-
-Public Function InformeAlmacen(ByVal preguntarPdf As Boolean) As String
-    Dim cm As Long, wb As Workbook, ws As Worksheet, ruta As String, rutaPdf As String, msg As String
-    InformeAlmacen = ""
-    Inicio cm, "Armando el informe de almacén..."
-    PrepararAlmacen
-    If anCat = 0 Then
-        Fin cm
-        Aviso "El CATÁLOGO está vacío: registre los insumos del almacén.", "INFORME DE ALMACÉN", 48
-        Exit Function
-    End If
-    On Error GoTo Falla
-    Set wb = Nothing
-    Set ws = CopiarPlantilla("FMT_INV", wb, "INV. " & Year(CDate(MesInicio())), 2, 4)
-    Estado "Informe de almacén: inventario..."
-    HojaInventario ws
-    Estado "Informe de almacén: 4.10..."
-    Set ws = CopiarPlantilla("FMT_410", wb, "4.10 MOV_" & MesCorto(), 13, 16)
-    HojaMovimiento ws, Hoja("FMT_410"), False
-    Estado "Informe de almacén: 4.11..."
-    Set ws = CopiarPlantilla("FMT_411", wb, "4.11 INGRESO - EGRESO", 13, 16)
-    HojaMovimiento ws, Hoja("FMT_411"), True
-    Estado "Informe de almacén: 4.12..."
-    Set ws = CopiarPlantilla("FMT_412", wb, "4.12 SALD VAL_" & MesCorto(), 13, 20)
-    HojaSaldo ws, Hoja("FMT_412")
-    Application.CutCopyMode = False
-    wb.Worksheets(2).Activate
-    wb.Worksheets(2).Range("A1").Select
-    Fin cm
-    ruta = GuardarLibro(wb, "ALMACEN DE OBRA", rutaPdf, preguntarPdf)
-    msg = "Informe de almacén de " & MesTexto() & ": INV., 4.10, 4.11 y 4.12 (" & anCat & " insumos en " & rN & " rubros)."
-    If nFuera > 0 Then msg = msg & vbCrLf & "Atención: " & nFuera & " movimiento(s) con fecha fuera del mes no entran en los cuadros diarios."
+    ruta = GuardarLibro(wb, tema, rutaPdf, preguntarPdf)
     If ruta = "" Then
-        msg = msg & vbCrLf & vbCrLf & "El libro quedó abierto sin guardar (se canceló «Guardar como»)."
+        msg = tema & ": el libro quedó abierto sin guardar (se canceló «Guardar como»)."
     Else
-        msg = msg & vbCrLf & vbCrLf & "Excel: " & ruta
+        msg = tema & " de " & MesTexto() & vbCrLf & "Excel: " & ruta
         If rutaPdf <> "" Then msg = msg & vbCrLf & "PDF: " & rutaPdf
-        Mensaje D_MSGINF, "Informe de almacén (" & Format(Now, "dd/mm/yyyy hh:mm") & "): " & ruta
+        Mensaje D_MSGINF, tema & " (" & Format(Now, "dd/mm/yyyy hh:mm") & "): " & ruta
     End If
-    InformeAlmacen = ruta
-    Aviso msg, "INFORME DE ALMACÉN"
-    Exit Function
-Falla:
-    Fin cm
-    Aviso "No se pudo armar el informe de almacén: " & Err.Description, "INFORME DE ALMACÉN", 16
+    Exportar = ruta
+    Aviso msg, tema
 End Function
 
-Private Sub HojaInventario(ByVal ws As Worksheet)
-    ' INV.: un renglón por ingreso (meses anteriores + mes actual), agrupado por rubro, como tabla
-    Dim wsT As Worksheet, r As Long, g As Long, k As Long, m As Long, i As Long, lo As Object, n As Long
-    Set wsT = Hoja("FMT_INV")
-    ws.Cells(1, 9).Value = "N° DOCUMENTO"
-    r = 2
-    For g = 1 To rN
-        CopiarFilas wsT, 2, 2, ws, r
-        ws.Cells(r, 1).Value = g
-        ws.Cells(r, 2).Value = rNom(g)
-        r = r + 1
-        For k = 1 To anCat
-            If iRub(k) = g Then
-                ' meses anteriores
-                For i = 1 To hN
-                    If UCase(hCod(i)) = UCase(aCod(k)) Then
-                        CopiarFilas wsT, 3, 3, ws, r
-                        FilaInv ws, r, k, hFec(i), IIf(hOC(i) <> "", Doc(hOC(i)), hDoc(i)), hCant(i), _
-                                Juntar2(hDoc(i), hNDoc(i)), hProc(i)
-                        r = r + 1
-                    End If
-                Next i
-                ' mes actual
-                m = aPrim(k)
-                Do While m > 0
-                    If vTipo(m) = T_ING Then
-                        CopiarFilas wsT, 3, 3, ws, r
-                        FilaInv ws, r, k, vFec(m), IIf(vOC(m) <> "", Doc(vOC(m)), vDoc(m)), vCant(m), _
-                                Juntar2(vDoc(m), vNDoc(m)), vProc(m)
-                        r = r + 1
-                    End If
-                    m = vSig(m)
-                Loop
-            End If
-        Next k
-    Next g
-    BorrarSobrantes ws, r
-    n = r - 1
-    On Error Resume Next
-    Set lo = ws.ListObjects.Add(1, ws.Range("A1:J" & n), , 1)
-    If Not lo Is Nothing Then
-        lo.Name = "BD"
-        lo.TableStyle = "TableStyleMedium6"
-        lo.ShowTableStyleRowStripes = False
-        lo.ShowTotals = True
-        lo.ListColumns(1).TotalsCalculation = 0
-        lo.TotalsRowRange.Cells(1, 1).Value = "Total"
-        lo.ListColumns(7).TotalsCalculation = 1
-        ws.PageSetup.PrintArea = lo.Range.Address
-    Else
-        ws.PageSetup.PrintArea = "$A$1:$J$" & n
-    End If
-    ws.PageSetup.PrintTitleRows = "$1:$1"
-    On Error GoTo 0
-End Sub
-
-Private Function Juntar2(ByVal a As String, ByVal b As String) As String
-    If b = "" Then
-        Juntar2 = a
-    ElseIf a = "" Then
-        Juntar2 = b
-    Else
-        Juntar2 = a & " " & b
-    End If
-End Function
-
-Private Sub FilaInv(ByVal ws As Worksheet, ByVal r As Long, ByVal k As Long, ByVal f As Double, ByVal tipo As String, _
-                    ByVal cant As Double, ByVal ndoc As String, ByVal prov As String)
-    ws.Cells(r, 1).NumberFormat = "@"
-    ws.Cells(r, 1).Value = iNum(k)
-    ws.Cells(r, 2).Value = aDes(k)
-    ws.Cells(r, 3).Value = aUnd(k)
-    ws.Cells(r, 4).Value = tipo
-    If aPU(k) <> 0 Then ws.Cells(r, 5).Value = aPU(k)
-    ws.Cells(r, 6).Value = cant
-    ws.Cells(r, 7).Formula = "=" & ws.Cells(r, 5).Address(False, False) & "*" & ws.Cells(r, 6).Address(False, False)
-    If f > 0 Then ws.Cells(r, 8).Value = CDate(f)
-    ws.Cells(r, 9).Value = ndoc
-    ws.Cells(r, 10).Value = prov
-End Sub
-
-Private Sub HojaMovimiento(ByVal ws As Worksheet, ByVal wsT As Worksheet, ByVal es411 As Boolean)
-    ' 4.10 (es411 = False) y 4.11 (es411 = True): dos filas por insumo (ENTRADA / SALIDA) con los días del mes
-    Dim r As Long, g As Long, k As Long, d As Long, v() As Variant, cT As Long, cS As Long, ent As String
-    Dim f0 As Long, txt As String, cAno As Long, cP As Long
-    ent = Dato(D_ENTIDAD) & vbLf & Dato(D_GEREN) & vbLf
-    ws.Cells(1, 2).Value = ent
-    If es411 Then
-        ws.Cells(3, 2).Value = "4.11 CUADRO RESUMEN DE ALMACÉN (INGRESOS – EGRESOS) - " & NombreMes(MesInicio()) & " " & _
-                               Year(CDate(MesInicio()))
-        cP = 3
-        cAno = 42
-    Else
-        ws.Cells(3, 2).Value = "4.10 CUADRO DE MOVIMIENTO DIARIO DE ALMACEN - " & NombreMes(MesInicio()) & " " & _
-                               Year(CDate(MesInicio()))
-        cP = 4
-        cAno = 40
-    End If
-    ws.Cells(5, cP).Value = ConDos("“" & Dato(D_PROY) & "”.")
-    ws.Cells(6, cP).Value = ConDos(Dato(D_MODAL))
-    ws.Cells(7, cP).Value = ConDos(Dato(D_RESID))
-    ws.Cells(8, cP).Value = ConDos(Dato(D_SUPER))
-    ws.Cells(8, 2).Value = Dato(D_F4)
-    ws.Cells(5, cAno).Value = Year(CDate(MesInicio()))
-    ws.Cells(7, cAno).Value = MesNombre(MesInicio())
-    ws.Cells(10, 7).Value = "SALDO" & vbLf & NombreMes(MesAnterior()) & " " & Year(CDate(MesAnterior()))
-    txt = "SALDO " & NombreMes(MesInicio()) & " " & Year(CDate(MesInicio()))
-    If es411 Then
-        ws.Cells(10, 39).Value = "TOTAL"
-        ws.Cells(10, 40).Value = "INGRESOS"
-        ws.Cells(10, 41).Value = "SALIDAS"
-        ws.Cells(10, 42).Value = txt
-    Else
-        ws.Cells(10, 39).Value = "TOTAL"
-        ws.Cells(10, 40).Value = txt
-    End If
-    CabeceraDias ws, 10, 11, 8
-    r = 13
-    f0 = r
-    For g = 1 To rN
-        CopiarFilas wsT, 13, 14, ws, r
-        ws.Cells(r, 2).Value = g
-        ws.Cells(r, 3).Value = rNom(g)
-        r = r + 2
-        For k = 1 To anCat
-            If iRub(k) = g Then
-                CopiarFilas wsT, 15, 16, ws, r
-                ws.Cells(r, 2).NumberFormat = "@"
-                ws.Cells(r, 2).Value = iNum(k)
-                ws.Cells(r, 3).Value = aDes(k)
-                ws.Cells(r, 4).Value = aUnd(k)
-                ws.Cells(r, 5).Value = iTipo(k)
-                ws.Cells(r, 6).Value = "ENTRADA"
-                ws.Cells(r + 1, 6).Value = "SALIDA"
-                ws.Cells(r, 7).Value = Redondear(aAnt(k), 4)
-                ReDim v(1 To 2, 1 To 31)
-                For d = 1 To 31
-                    If dIng(k, d) <> 0 Then v(1, d) = Redondear(dIng(k, d), 4)
-                    If dSal(k, d) <> 0 Then v(2, d) = Redondear(dSal(k, d), 4)
-                Next d
-                ws.Range(ws.Cells(r, 8), ws.Cells(r + 1, 38)).Value = v
-                ws.Cells(r, 39).Formula = SumaFila(ws, r, 8, 38)
-                ws.Cells(r + 1, 39).Formula = SumaFila(ws, r + 1, 8, 38)
-                If es411 Then
-                    ws.Cells(r, 40).Formula = "=" & ws.Cells(r, 39).Address(False, False)
-                    ws.Cells(r, 41).Formula = "=" & ws.Cells(r + 1, 39).Address(False, False)
-                    ws.Cells(r, 42).Formula = "=" & ws.Cells(r, 7).Address(False, False) & "+" & _
-                                              ws.Cells(r, 39).Address(False, False) & "-" & ws.Cells(r + 1, 39).Address(False, False)
-                Else
-                    ws.Cells(r, 40).Formula = "=" & ws.Cells(r, 7).Address(False, False) & "+" & _
-                                              ws.Cells(r, 39).Address(False, False) & "-" & ws.Cells(r + 1, 39).Address(False, False)
-                End If
-                r = r + 2
-            End If
-        Next k
-    Next g
-    BorrarSobrantes ws, r
-    Domingos ws, 8, f0, r - 1
-    On Error Resume Next
-    If es411 Then
-        ws.PageSetup.PrintArea = "$B$1:$AP$" & (r - 1)
-    Else
-        ws.PageSetup.PrintArea = "$A$1:$AN$" & (r - 1)
-    End If
-    ws.PageSetup.PrintTitleRows = "$10:$12"
-    On Error GoTo 0
-End Sub
-
-Private Sub HojaSaldo(ByVal ws As Worksheet, ByVal wsT As Worksheet)
-    ' 4.12: saldo anterior, ingresos, salidas y saldo del mes, valorizados con el P.U. del catálogo
-    Dim r As Long, g As Long, k As Long, f0 As Long, f1 As Long, c As Long, a As String, c2 As Variant
-    ws.Cells(1, 2).Value = Dato(D_ENTIDAD) & vbLf & Dato(D_GEREN) & vbLf
-    ws.Cells(3, 2).Value = "4.12 SALDO VALORIZADO DE MATERIALES - " & NombreMes(MesInicio()) & " " & Year(CDate(MesInicio()))
-    ws.Cells(5, 4).Value = ConDos("“" & Dato(D_PROY) & "”.")
-    ws.Cells(7, 4).Value = ConDos(Dato(D_MODAL))
-    ws.Cells(8, 4).Value = ConDos(Dato(D_RESID))
-    ws.Cells(9, 4).Value = ConDos(Dato(D_SUPER))
-    ws.Cells(9, 2).Value = Dato(D_F4)
-    ws.Cells(7, 14).Value = Year(CDate(MesInicio()))
-    ws.Cells(9, 14).Value = MesNombre(MesInicio())
-    ws.Cells(11, 7).Value = "SALDO " & NombreMes(MesAnterior()) & " " & Year(CDate(MesAnterior()))
-    ws.Cells(11, 9).Value = "INGRESOS " & NombreMes(MesInicio()) & " " & Year(CDate(MesInicio()))
-    ws.Cells(11, 11).Value = "SALIDAS " & NombreMes(MesInicio()) & " " & Year(CDate(MesInicio()))
-    ws.Cells(11, 13).Value = "SALDO " & NombreMes(MesInicio()) & " " & Year(CDate(MesInicio()))
-    r = 13
-    f0 = r
-    For g = 1 To rN
-        CopiarFilas wsT, 13, 13, ws, r
-        ws.Cells(r, 2).Value = g
-        ws.Cells(r, 3).Value = rNom(g)
-        r = r + 1
-        For k = 1 To anCat
-            If iRub(k) = g Then
-                CopiarFilas wsT, 14, 14, ws, r
-                ws.Cells(r, 2).NumberFormat = "@"
-                ws.Cells(r, 2).Value = iNum(k)
-                ws.Cells(r, 3).Value = aDes(k)
-                ws.Cells(r, 4).Value = aUnd(k)
-                ws.Cells(r, 5).Value = iTipo(k)
-                ws.Cells(r, 6).Value = aPU(k)
-                ws.Cells(r, 7).Value = Redondear(aAnt(k), 4)
-                ws.Cells(r, 9).Value = Redondear(iIng(k), 4)
-                ws.Cells(r, 11).Value = Redondear(iSal(k), 4)
-                ws.Cells(r, 13).Formula = "=G" & r & "+I" & r & "-K" & r
-                ws.Cells(r, 8).Formula = "=ROUND($F" & r & "*G" & r & ",2)"
-                ws.Cells(r, 10).Formula = "=ROUND($F" & r & "*I" & r & ",2)"
-                ws.Cells(r, 12).Formula = "=ROUND($F" & r & "*K" & r & ",2)"
-                ws.Cells(r, 14).Formula = "=ROUND($F" & r & "*M" & r & ",2)"
-                r = r + 1
-            End If
-        Next k
-    Next g
-    f1 = r - 1
-    ' total y resumen
-    CopiarFilas wsT, 15, 20, ws, r
-    ws.Cells(r, 2).Value = "Total"
-    For Each c2 In Array(8, 10, 12, 14)
-        ws.Cells(r, CLng(c2)).Formula = "=SUM(" & ws.Cells(f0, CLng(c2)).Address(False, False) & ":" & _
-                                        ws.Cells(f1, CLng(c2)).Address(False, False) & ")"
-    Next c2
-    For c = 0 To 3
-        ws.Cells(r + 2 + c, 12).Value = ws.Cells(11, 7 + 2 * c).Value
-        ws.Cells(r + 2 + c, 14).Formula = "=" & ws.Cells(r, 8 + 2 * c).Address(False, False)
-    Next c
-    BorrarSobrantes ws, r + 6
-    On Error Resume Next
-    ws.PageSetup.PrintArea = "$B$1:$N$" & (r + 5)
-    ws.PageSetup.PrintTitleRows = "$11:$12"
-    On Error GoTo 0
-End Sub
-
-
-'========================================================================== INFORME DE EQUIPO MECÁNICO (4.15)
-Public Sub GenerarInformeEquipos()
-    Dim r As String
-    r = InformeEquipos(True)
-End Sub
-
-Private Function UnidadCorta(ByVal u As String) As String
+Public Sub ExportarInformeAlmacenBoton()
     Dim s As String
-    s = Normal(u)
-    s = Replace(s, " ", "")
-    If s = "HM" Or s = "H.M." Or s = "H.M" Or s = "HORAMAQUINA" Then
-        UnidadCorta = "H.M."
-    ElseIf s = "HE" Or s = "H.E." Or s = "H.E" Or s = "HORAEQUIPO" Then
-        UnidadCorta = "H.E."
-    ElseIf Left(s, 3) = "DIA" Or s = "D" Then
-        UnidadCorta = "DIA"
-    ElseIf Left(s, 3) = "VIA" Or Left(s, 3) = "VJE" Then
-        UnidadCorta = "VJE"
-    ElseIf s = "" Then
-        UnidadCorta = "H.M."
-    Else
-        UnidadCorta = UCase(Trim(u))
-    End If
-End Function
-
-Public Function InformeEquipos(ByVal preguntarPdf As Boolean) As String
-    Dim cm As Long, wb As Workbook, ws As Worksheet, wsT As Worksheet, ruta As String, rutaPdf As String, msg As String
-    Dim hor() As Double, com() As Double, tieneParte() As Boolean, j As Long, i As Long, k As Long, d As Long
-    Dim sec As Long, unid() As String, bloques As Collection, u As Variant, r As Long, n As Long, f0 As Long, rB As Long
-    Dim v() As Variant, primeros As String, ultimos As String, rTot As Long, ent As String, t As Double
-    Dim combCod() As String, nComb As Long, combDia() As Double, cK As Long, x As Long, secNom As String, hayEq As Boolean
-    Dim fRows As String, nDet As Long
-
-    InformeEquipos = ""
-    Inicio cm, "Armando el informe de equipo mecánico..."
-    LeerPartes
-    If enEq = 0 Then
-        Fin cm
-        Aviso "No hay equipos registrados en EQUIPOS.", "INFORME DE EQUIPO MECÁNICO", 48
-        Exit Function
-    End If
-    On Error GoTo Falla
-    ReDim hor(1 To enEq, 1 To 31)
-    ReDim com(1 To enEq, 1 To 31)
-    ReDim tieneParte(1 To enEq)
-    ReDim unid(1 To enEq)
-    For j = 1 To pnPar
-        i = pR(j)
-        k = pEq(j)
-        t = pFec(j)
-        If t >= MesInicio() And t <= MesFin() Then
-            d = Day(CDate(t))
-            hor(k, d) = hor(k, d) + HorasFila(i)
-            com(k, d) = com(k, d) + Num(pV(i, PC_COMB))
-            tieneParte(k) = True
-        End If
-    Next j
-    For k = 1 To enEq
-        unid(k) = UnidadCorta(eUnd(k))
-    Next k
-
-    Set wb = Nothing
-    Set ws = CopiarPlantilla("FMT_415", wb, MesCorto(), 14, 25)
-    Set wsT = Hoja("FMT_415")
-    ent = Dato(D_ENTIDAD)
-    ws.Cells(1, 2).Value = ent
-    ws.Cells(5, 2).Value = "CONTROL DE EQUIPO MECANICO Y COMBUSTIBLE CORRESPONDIENTE AL MES DE " & NombreMes(MesInicio()) & _
-                           " " & Year(CDate(MesInicio()))
-    ws.Cells(6, 6).Value = ConDos("“" & Dato(D_PROY) & "”")
-    ws.Cells(8, 6).Value = ConDos(ent)
-    ws.Cells(9, 6).Value = ConDos(Dato(D_MODAL))
-    ws.Cells(10, 6).Value = ConDos(Dato(D_RESID))
-    ws.Cells(11, 2).Value = Dato(D_F4)
-    ws.Cells(11, 6).Value = ConDos(Dato(D_SUPER))
-    ' días del mes (columnas J..AN) para todo el libro
-    For d = 1 To 31
-        ws.Columns(9 + d).Hidden = (d > DiasMes())
-    Next d
-    r = 14
-    For sec = 1 To 2
-        If sec = 1 Then
-            secNom = "MAQUINARIAS Y EQUIPOS ALQUILADOS POR SERVICIO (O/S)"
-        Else
-            secNom = "MAQUINARIAS Y EQUIPOS PROPIOS O PRESTADOS"
-        End If
-        ' unidades de esta sección, en el orden de EQUIPOS
-        Set bloques = New Collection
-        hayEq = False
-        For k = 1 To enEq
-            If (sec = 1) = (eOS(k) <> "") Then
-                hayEq = True
-                On Error Resume Next
-                bloques.Add unid(k), unid(k)
-                On Error GoTo Falla
-            End If
-        Next k
-        If hayEq Then
-            CopiarFilas wsT, 14, 15, ws, r
-            ws.Cells(r, 2).Value = secNom
-            r = r + 2
-            For Each u In bloques
-                rB = r
-                CopiarFilas wsT, 16, 18, ws, r
-                ws.Cells(r, 6).Value = "COMBUS./ " & u
-                If u = "DIA" Then
-                    ws.Cells(r, 8).Value = "TOTAL DIAS"
-                    ws.Cells(r, 9).Value = "DIAS ACUM."
-                ElseIf u = "VJE" Then
-                    ws.Cells(r, 8).Value = "TOTAL VIAJES"
-                    ws.Cells(r, 9).Value = "VIAJES ACUM."
-                Else
-                    ws.Cells(r, 8).Value = "TOTAL HRS"
-                    ws.Cells(r, 9).Value = "HORAS ACUM."
-                End If
-                ws.Cells(r, 10).Value = "MES DE " & NombreMes(MesInicio()) & " " & Year(CDate(MesInicio()))
-                ws.Cells(r, 41).Value = "TOTAL"
-                ws.Cells(r + 1, 41).Value = "COMB."
-                ws.Cells(r + 1, 42).Value = IIf(u = "DIA", "DIAS", u)
-                CabeceraDias ws, r + 1, r + 2, 10
-                r = r + 3
-                f0 = r
-                n = 0
-                For k = 1 To enEq
-                    If (sec = 1) = (eOS(k) <> "") And unid(k) = u Then
-                        n = n + 1
-                        CopiarFilas wsT, 19, 20, ws, r
-                        ws.Cells(r, 2).Value = n
-                        ws.Cells(r, 3).Value = eDes(k) & IIf(eSerie(k) <> "", " – " & eSerie(k), "")
-                        ws.Cells(r, 6).Value = "GAL"
-                        ws.Cells(r + 1, 6).Value = IIf(u = "DIA", "DIA", u)
-                        ReDim v(1 To 2, 1 To 31)
-                        For d = 1 To 31
-                            If com(k, d) <> 0 Then v(1, d) = Redondear(com(k, d), 2)
-                            If hor(k, d) <> 0 Then v(2, d) = Redondear(hor(k, d), 2)
-                        Next d
-                        ws.Range(ws.Cells(r, 10), ws.Cells(r + 1, 40)).Value = v
-                        ws.Cells(r, 41).Formula = SumaFila(ws, r, 10, 40)
-                        ws.Cells(r + 1, 42).Formula = SumaFila(ws, r + 1, 10, 40)
-                        ws.Cells(r, 9).Formula = "=" & Trim(Str(Num(Hoja("EQUIPOS").Cells(EQ0 + EquipoFila(k), EC_ANT).Value))) & _
-                                                 "+" & ws.Cells(r + 1, 42).Address(False, False)
-                        ws.Cells(r, 43).Value = eOper(k)
-                        r = r + 2
-                    End If
-                Next k
-                CopiarFilas wsT, 21, 22, ws, r
-                ws.Cells(r, 31).Value = "TOTAL: COMBUSTIBLE/ " & IIf(u = "DIA", "DIAS", u)
-                ws.Cells(r, 41).Formula = "=SUM(" & ws.Cells(f0, 41).Address(False, False) & ":" & _
-                                          ws.Cells(r - 1, 41).Address(False, False) & ")"
-                ws.Cells(r, 42).Formula = "=SUM(" & ws.Cells(f0, 42).Address(False, False) & ":" & _
-                                          ws.Cells(r - 1, 42).Address(False, False) & ")"
-                Domingos ws, 10, f0, r - 1
-                r = r + 2
-            Next u
-        End If
-    Next sec
-    ' resumen de combustible por tipo (filas del día)
-    ReDim combCod(1 To enEq)
-    ReDim combDia(1 To enEq, 1 To 31)
-    nComb = 0
-    For k = 1 To enEq
-        If eComb(k) <> "" Then
-            cK = 0
-            For x = 1 To nComb
-                If UCase(combCod(x)) = UCase(eComb(k)) Then cK = x
-            Next x
-            If cK = 0 Then
-                nComb = nComb + 1
-                combCod(nComb) = eComb(k)
-                cK = nComb
-            End If
-            For d = 1 To 31
-                combDia(cK, d) = combDia(cK, d) + com(k, d)
-            Next d
-        End If
-    Next k
-    If nComb > 0 Then
-        CopiarFilas wsT, 23, 24, ws, r
-        CabeceraDias ws, r, r + 1, 10
-        ws.Cells(r, 41).Value = "COMB."
-        r = r + 2
-        For x = 1 To nComb
-            CopiarFilas wsT, 25, 25, ws, r
-            ws.Cells(r, 2).Value = DescCatalogoR(combCod(x))
-            ReDim v(1 To 1, 1 To 31)
-            For d = 1 To 31
-                If combDia(x, d) <> 0 Then v(1, d) = Redondear(combDia(x, d), 2)
-            Next d
-            ws.Range(ws.Cells(r, 10), ws.Cells(r, 40)).Value = v
-            ws.Cells(r, 41).Formula = SumaFila(ws, r, 10, 40)
-            r = r + 1
-        Next x
-    End If
-    BorrarSobrantes ws, r
-    On Error Resume Next
-    ws.PageSetup.PrintArea = "$A$1:$AP$" & (r - 1)
-    ws.PageSetup.PrintTitleRows = "$1:$12"
-    On Error GoTo Falla
-    ' detalle diario por equipo
-    For k = 1 To enEq
-        If tieneParte(k) Then
-            HojaDetalle wb, k
-            nDet = nDet + 1
-        End If
-    Next k
-    Application.CutCopyMode = False
-    wb.Worksheets(1).Activate
-    wb.Worksheets(1).Range("A1").Select
-    Fin cm
-    ruta = GuardarLibro(wb, "CONTROL DE EQUIPO MECANICO", rutaPdf, preguntarPdf)
-    msg = "Informe 4.15 de " & MesTexto() & ": control de equipo mecánico y combustible (" & enEq & " equipos) y " & nDet & _
-          " hoja(s) de detalle diario."
-    If ruta = "" Then
-        msg = msg & vbCrLf & vbCrLf & "El libro quedó abierto sin guardar (se canceló «Guardar como»)."
-    Else
-        msg = msg & vbCrLf & vbCrLf & "Excel: " & ruta
-        If rutaPdf <> "" Then msg = msg & vbCrLf & "PDF: " & rutaPdf
-        Mensaje D_MSGINF, "Informe de equipo mecánico (" & Format(Now, "dd/mm/yyyy hh:mm") & "): " & ruta
-    End If
-    InformeEquipos = ruta
-    Aviso msg, "INFORME DE EQUIPO MECÁNICO"
-    Exit Function
-Falla:
-    Fin cm
-    Aviso "No se pudo armar el informe de equipo mecánico: " & Err.Description, "INFORME DE EQUIPO MECÁNICO", 16
-End Function
-
-Private Function EquipoFila(ByVal k As Long) As Long
-    ' fila (desde 0) del equipo k en la hoja EQUIPOS
-    Dim ws As Worksheet, f As Variant
-    Set ws = Hoja("EQUIPOS")
-    EquipoFila = 0
-    f = Application.Match(eCod(k), ws.Range(ws.Cells(EQ0, EC_COD), ws.Cells(EQMAX, EC_COD)), 0)
-    If Not IsError(f) Then EquipoFila = CLng(f) - 1
-End Function
-
-Private Function DescCatalogoR(ByVal cod As String) As String
-    Dim ws As Worksheet, f As Variant
-    Set ws = Hoja("CATALOGO")
-    DescCatalogoR = cod
-    f = Application.Match(cod, ws.Range(ws.Cells(CT0, CC_COD), ws.Cells(CTMAX, CC_COD)), 0)
-    If Not IsError(f) Then DescCatalogoR = UCase(txt(ws.Cells(CT0 + CLng(f) - 1, CC_DES).Value))
-End Function
-
-Private Sub HojaDetalle(ByVal wb As Workbook, ByVal k As Long)
-    ' detalle diario del equipo: horarios de mañana y tarde, horas y observaciones (formato «Detalle»)
-    Dim ws As Worksheet, wsT As Worksheet, r As Long, j As Long, i As Long, t As Double, d As Long, f0 As Long
-    Dim obs As String, h As Double, a1 As Variant, b1 As Variant, a2 As Variant, b2 As Variant, tr As String
-    Set wsT = Hoja("FMT_DET")
-    Set ws = CopiarPlantilla("FMT_DET", wb, Left("Detalle " & NombreSeguro(eCod(k) & " " & eDes(k), 40), 31), 4, 5)
-    ws.Cells(1, 1).Value = "DETALLE DIARIO DE HORAS – " & eCod(k) & " " & eDes(k) & IIf(eSerie(k) <> "", " – " & eSerie(k), "") & _
-                           "   (" & NombreMes(MesInicio()) & " " & Year(CDate(MesInicio())) & ")"
-    ws.Cells(1, 1).Font.Bold = True
-    ws.Cells(1, 1).Font.Size = 12
-    r = 4
-    f0 = r
-    j = 1
-    Do While j <= pnPar
-        If pEq(pOrden(j)) = k Then
-            t = pFec(pOrden(j))
-            ' todas las filas de ese día
-            a1 = Empty: b1 = Empty: a2 = Empty: b2 = Empty: h = 0: obs = "": tr = ""
-            Do While j <= pnPar
-                If pEq(pOrden(j)) <> k Or pFec(pOrden(j)) <> t Then Exit Do
-                i = pR(pOrden(j))
-                If IsEmpty(a1) And EsNum(pV(i, PC_MDE)) Then a1 = pV(i, PC_MDE): b1 = pV(i, PC_MA)
-                If IsEmpty(a2) And EsNum(pV(i, PC_TDE)) Then a2 = pV(i, PC_TDE): b2 = pV(i, PC_TA)
-                h = h + HorasFila(i)
-                If txt(pV(i, PC_PART)) <> "" Then
-                    If InStr(tr, txt(pV(i, PC_PART))) = 0 Then tr = tr & IIf(tr = "", "", ", ") & txt(pV(i, PC_PART))
-                End If
-                If Limpio(pV(i, PC_OBS)) <> "" Then
-                    If InStr(obs, Limpio(pV(i, PC_OBS))) = 0 Then obs = obs & IIf(obs = "", "", "; ") & Limpio(pV(i, PC_OBS))
-                End If
-                j = j + 1
-            Loop
-            CopiarFilas wsT, 4, 4, ws, r
-            ws.Cells(r, 1).Value = Day(CDate(t))
-            If Not IsEmpty(a1) Then
-                ws.Cells(r, 2).Value = Num(a1) - Int(Num(a1))
-                ws.Cells(r, 3).Value = Num(b1) - Int(Num(b1))
-            End If
-            If Not IsEmpty(a2) Then
-                ws.Cells(r, 5).Value = Num(a2) - Int(Num(a2))
-                ws.Cells(r, 6).Value = Num(b2) - Int(Num(b2))
-            End If
-            ws.Cells(r, 4).Formula = "=IF(OR(B" & r & "="""",C" & r & "=""""),0,C" & r & "-B" & r & ")"
-            ws.Cells(r, 7).Formula = "=IF(OR(E" & r & "="""",F" & r & "=""""),0,F" & r & "-E" & r & ")"
-            ws.Cells(r, 10).Value = 0
-            If IsEmpty(a1) And IsEmpty(a2) Then
-                ' sin horario: horas a valorizar (reales o A.C.U.)
-                ws.Cells(r, 11).Value = h / 24
-                obs = Trim("Horas a valorizar sin horario (reales o A.C.U. x metrado). " & obs)
-            Else
-                ws.Cells(r, 11).Formula = "=SUM(D" & r & ",G" & r & ",J" & r & ")"
-            End If
-            ws.Cells(r, 12).Formula = "=K" & r & "*24"
-            If tr <> "" Then obs = Trim("Partidas: " & tr & ". " & obs)
-            ws.Cells(r, 13).Value = obs
-            r = r + 1
-        Else
-            j = j + 1
-        End If
-    Loop
-    CopiarFilas wsT, 5, 5, ws, r
-    ws.Cells(r, 11).Formula = "=SUM(K" & f0 & ":K" & (r - 1) & ")"
-    ws.Cells(r, 12).Formula = "=K" & r & "*24"
-    BorrarSobrantes ws, r + 1
-    On Error Resume Next
-    ws.PageSetup.PrintArea = "$A$1:$M$" & r
-    ws.PageSetup.Orientation = 2
-    ws.PageSetup.Zoom = False
-    ws.PageSetup.FitToPagesWide = 1
-    ws.PageSetup.FitToPagesTall = False
-    On Error GoTo 0
+    s = ExportarInformeAlmacen(True)
 End Sub
+
+Public Function ExportarInformeAlmacen(ByVal preguntarPdf As Boolean) As String
+    Dim s As String
+    s = ActualizarCuadros(True)
+    ExportarInformeAlmacen = Exportar(Array(HojaPref("INV.").Name, HojaPref("4.10").Name, HojaPref("4.11").Name, _
+                                            HojaPref("4.12").Name), "ALMACEN DE OBRA", preguntarPdf)
+End Function
+
+Public Sub ExportarInformeEquiposBoton()
+    Dim s As String
+    s = ExportarInformeEquipos(True)
+End Sub
+
+Public Function ExportarInformeEquipos(ByVal preguntarPdf As Boolean) As String
+    Dim s As String
+    s = ActualizarCuadros(True)
+    ExportarInformeEquipos = Exportar(Array(HojaPref("4.15").Name), "CONTROL DE EQUIPO MECANICO", preguntarPdf)
+End Function

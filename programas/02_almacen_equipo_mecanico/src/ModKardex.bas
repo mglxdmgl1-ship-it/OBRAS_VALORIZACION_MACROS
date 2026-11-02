@@ -30,8 +30,8 @@ Public vCant() As Double, vItem() As Long, vFila() As Long, vSig() As Long, vOrd
 Public aCol As Collection
 
 
-Public Sub LeerAlmacen()
-    ' lee el CATALOGO y los MOVIMIENTOS válidos, ordenados por fecha (ingresos antes que salidas del mismo día)
+Public Sub LeerAlmacenCatalogo()
+    ' (formato anterior) lee el CATALOGO y los MOVIMIENTOS válidos, ordenados por fecha (ingresos antes que salidas del mismo día)
     Dim ws As Worksheet, v As Variant, i As Long, n As Long, k As Long, last As Long, j As Long
     Dim cod As String, t As Double, tp As String, q As Double
     Dim llave() As Double
@@ -141,14 +141,22 @@ Public Sub LeerAlmacen()
 End Sub
 
 
+Public Sub LeerAlmacen()
+    ' insumos y movimientos del mes desde el INV. y el cuadro 4.10
+    LeerCuadrosAlmacen
+End Sub
+
+
 Public Sub GenerarKardex()
-    Dim n As Long
+    Dim n As Long, s As String
+    s = ActualizarCuadros(True)
     n = ArmarTarjetas(True, True, Pregunta("Se arma un PDF con todos los kardex del mes." & vbCrLf & vbCrLf & _
                       "¿Desea además un PDF por cada insumo (carpeta KARDEX\POR_INSUMO)?", "KARDEX", False))
 End Sub
 
 Public Sub GenerarBincard()
-    Dim n As Long
+    Dim n As Long, s As String
+    s = ActualizarCuadros(True)
     n = ArmarTarjetas(False, True, Pregunta("Se arma un PDF con todas las tarjetas BINCARD del mes." & vbCrLf & vbCrLf & _
                       "¿Desea además un PDF por cada insumo (carpeta BINCARD\POR_INSUMO)?", "BINCARD", False))
 End Sub
@@ -164,7 +172,7 @@ Private Function Juntar(ByVal a As String, ByVal b As String, ByVal sep As Strin
     End If
 End Function
 
-Private Sub PonerColumna(ByVal ws As Worksheet, ByVal f0 As Long, ByVal col As Long, ByRef lin() As Variant, _
+Private Sub PonerColumna(ByVal ws As Worksheet, ByVal F0 As Long, ByVal col As Long, ByRef lin() As Variant, _
                          ByVal desde As Long, ByVal n As Long, ByVal idx As Long)
     ' escribe una columna de la tabla (una sola columna: así no hay problemas con las celdas combinadas)
     Dim b() As Variant, i As Long
@@ -172,7 +180,7 @@ Private Sub PonerColumna(ByVal ws As Worksheet, ByVal f0 As Long, ByVal col As L
     For i = 1 To n
         b(i, 1) = lin(desde + i - 1, idx)
     Next i
-    ws.Range(ws.Cells(f0, col), ws.Cells(f0 + n - 1, col)).Value = b
+    ws.Range(ws.Cells(F0, col), ws.Cells(F0 + n - 1, col)).Value = b
 End Sub
 
 
@@ -196,7 +204,7 @@ Public Function ArmarTarjetas(ByVal esKardex As Boolean, ByVal conPdf As Boolean
     LeerAlmacen
     If anCat = 0 Then
         Fin cm
-        Aviso "El CATÁLOGO está vacío: registre los insumos del almacén.", nombre, 48
+        Aviso "El INV. está vacío: registre los ingresos del almacén en la hoja INV. 2026.", nombre, 48
         Exit Function
     End If
     If esKardex Then
@@ -400,8 +408,6 @@ Public Function ArmarTarjetas(ByVal esKardex As Boolean, ByVal conPdf As Boolean
     ArmarTarjetas = nTar
 
     msg = "Se armaron " & nTar & " tarjetas de " & nombre & " (" & totPag & " hojas) del mes de " & MesTexto() & "."
-    If anMal > 0 Then msg = msg & vbCrLf & "Atención: " & anMal & " fila(s) de MOVIMIENTOS no se consideraron (sin fecha, " & _
-                            "tipo, código del catálogo o cantidad). Revise la columna VERIFICACIÓN."
     If conPdf And nTar > 0 Then
         Estado "Exportando " & nombre & " a PDF..."
         archivo = GuardarComo(RutaSugerida(nombre, nombre & "_" & MesArchivo() & "_TODOS.pdf"), _

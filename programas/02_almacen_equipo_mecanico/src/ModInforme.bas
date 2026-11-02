@@ -46,19 +46,19 @@ Private Sub CopiarDatos(ByVal wb As Workbook)
     ws.Range(D_CORTE).Value = CDate(FechaCorte())
 End Sub
 
-Private Function CopiarBloque(ByVal src As Worksheet, ByVal dst As Worksheet, ByVal f0 As Long, ByVal fmax As Long, _
+Private Function CopiarBloque(ByVal src As Worksheet, ByVal dst As Worksheet, ByVal F0 As Long, ByVal fmax As Long, _
                               ByVal colKey As Long, ByVal ucol As Long) As Long
     Dim last As Long, v As Variant, i As Long, n As Long
     CopiarBloque = 0
-    last = UltimaFila(src, colKey, f0, fmax)
-    dst.Range(dst.Cells(f0, 1), dst.Cells(fmax, ucol)).ClearContents
-    If last < f0 Then Exit Function
-    v = src.Range(src.Cells(f0, 1), src.Cells(last, ucol)).Value
+    last = UltimaFila(src, colKey, F0, fmax)
+    dst.Range(dst.Cells(F0, 1), dst.Cells(fmax, ucol)).ClearContents
+    If last < F0 Then Exit Function
+    v = src.Range(src.Cells(F0, 1), src.Cells(last, ucol)).Value
     For i = 1 To UBound(v, 1)
         If IsError(v(i, 1)) Then v(i, 1) = Empty
         If txt(v(i, colKey)) <> "" Then n = n + 1
     Next i
-    dst.Range(dst.Cells(f0, 1), dst.Cells(last, ucol)).Value = v
+    dst.Range(dst.Cells(F0, 1), dst.Cells(last, ucol)).Value = v
     CopiarBloque = n
 End Function
 

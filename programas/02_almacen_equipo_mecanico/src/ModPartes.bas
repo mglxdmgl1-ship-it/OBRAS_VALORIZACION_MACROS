@@ -66,7 +66,8 @@ Public Sub LeerEquipos()
     Next i
 End Sub
 
-Public Sub LeerPartes()
+Public Sub LeerPartesHoja()
+    ' (formato anterior) partes de la hoja PARTES
     Dim ws As Worksheet, last As Long, n As Long, i As Long, k As Long, t As Double
     Dim llave() As Double
     LeerEquipos
@@ -105,6 +106,11 @@ Public Sub LeerPartes()
     If pnPar > 1 Then Ordenar llave, pOrden, pnPar
 End Sub
 
+Public Sub LeerPartes()
+    ' partes del mes desde el cuadro 4.15 (combustible y horas de cada día)
+    LeerPartes415
+End Sub
+
 Public Function HorasFila(ByVal i As Long) As Double
     ' horas a valorizar de una fila de PARTES: las reales o, si no hay, las del A.C.U.
     If EsNum(pV(i, PC_HREAL)) Then
@@ -136,7 +142,8 @@ End Function
 
 
 Public Sub GenerarPartes()
-    Dim n As Long
+    Dim n As Long, s As String
+    s = ActualizarCuadros(True)
     n = ArmarPartes(True, Pregunta("Se arma un PDF con todos los partes diarios del mes." & vbCrLf & vbCrLf & _
                     "¿Desea además un PDF por cada equipo (carpeta PARTES_DIARIOS\POR_EQUIPO)?", "PARTES DIARIOS", False))
 End Sub
@@ -193,8 +200,8 @@ Public Function ArmarPartes(ByVal conPdf As Boolean, ByVal porEquipo As Boolean)
     LeerPartes
     If pnPar = 0 Then
         Fin cm
-        Aviso "No hay partes válidos en la hoja PARTES (cada fila necesita FECHA y CÓDIGO DE EQUIPO registrado en EQUIPOS).", _
-              "PARTES DIARIOS", 48
+        Aviso "No hay combustible ni horas en el cuadro 4.15 del mes (registre los equipos en EQUIPOS, pulse ACTUALIZAR " & _
+              "CUADROS y anote cada día el combustible y las horas).", "PARTES DIARIOS", 48
         Exit Function
     End If
     proy = Limpio(Hoja("DATOS").Range(D_PROY).Value)
@@ -414,8 +421,7 @@ Public Function ArmarPartes(ByVal conPdf As Boolean, ByVal porEquipo As Boolean)
     ArmarPartes = nG
 
     msg = "Se armaron " & nG & " partes diarios (" & totPag & " hojas) del mes de " & MesTexto() & "."
-    If pnMal > 0 Then msg = msg & vbCrLf & "Atención: " & pnMal & " fila(s) de PARTES no se consideraron (sin fecha o con un " & _
-                            "código de equipo que no está en EQUIPOS)."
+    If pnMal > 0 Then msg = msg & vbCrLf & "Atención: " & pnMal & " equipo(s) del 4.15 ya no están en EQUIPOS (pulse ACTUALIZAR CUADROS)."
     If conPdf And nG > 0 Then
         Estado "Exportando los partes diarios a PDF..."
         archivo = GuardarComo(RutaSugerida("PARTES_DIARIOS", "PARTES_DIARIOS_" & MesArchivo() & "_TODOS.pdf"), _

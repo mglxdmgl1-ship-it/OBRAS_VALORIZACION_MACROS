@@ -344,29 +344,29 @@ Public Function Hoja(ByVal nombre As String) As Worksheet
     Set Hoja = ThisWorkbook.Worksheets(nombre)
 End Function
 
-Public Function UltimaFila(ByVal ws As Worksheet, ByVal col As Long, ByVal f0 As Long, ByVal f1 As Long) As Long
+Public Function UltimaFila(ByVal ws As Worksheet, ByVal col As Long, ByVal F0 As Long, ByVal f1 As Long) As Long
     ' última fila con dato en la columna (entre f0 y f1); f0 - 1 si no hay datos
     Dim v As Variant, i As Long
-    UltimaFila = f0 - 1
-    v = ws.Range(ws.Cells(f0, col), ws.Cells(f1, col)).Value
+    UltimaFila = F0 - 1
+    v = ws.Range(ws.Cells(F0, col), ws.Cells(f1, col)).Value
     For i = UBound(v, 1) To 1 Step -1
         If txt(v(i, 1)) <> "" Then
-            UltimaFila = f0 + i - 1
+            UltimaFila = F0 + i - 1
             Exit Function
         End If
     Next i
 End Function
 
-Public Function UltimaFilaVarias(ByVal ws As Worksheet, ByVal c1 As Long, ByVal c2 As Long, ByVal f0 As Long, _
+Public Function UltimaFilaVarias(ByVal ws As Worksheet, ByVal c1 As Long, ByVal c2 As Long, ByVal F0 As Long, _
                                  ByVal f1 As Long) As Long
     ' última fila con algún dato entre las columnas c1 y c2
     Dim v As Variant, i As Long, j As Long
-    UltimaFilaVarias = f0 - 1
-    v = ws.Range(ws.Cells(f0, c1), ws.Cells(f1, c2)).Value
+    UltimaFilaVarias = F0 - 1
+    v = ws.Range(ws.Cells(F0, c1), ws.Cells(f1, c2)).Value
     For i = UBound(v, 1) To 1 Step -1
         For j = 1 To UBound(v, 2)
             If txt(v(i, j)) <> "" Then
-                UltimaFilaVarias = f0 + i - 1
+                UltimaFilaVarias = F0 + i - 1
                 Exit Function
             End If
         Next j
@@ -736,14 +736,14 @@ End Sub
 
 Public Function PonerLogo(ByVal ws As Worksheet, ByVal archivo As String, ByVal marco As String) As Boolean
     ' reemplaza la imagen LOGO de la hoja por la del archivo, centrada dentro del marco (celdas)
-    Dim shp As Object, pic As Object, L As Double, t As Double, w As Double, h As Double, r As Double
+    Dim shp As Object, pic As Object, l As Double, t As Double, w As Double, h As Double, r As Double
     PonerLogo = False
     On Error GoTo Falla
-    L = ws.Range(marco).Left + 2
+    l = ws.Range(marco).Left + 2
     t = ws.Range(marco).Top + 2
     w = ws.Range(marco).Width - 4
     h = ws.Range(marco).Height - 4
-    Set pic = ws.Shapes.AddPicture(archivo, 0, -1, L, t, -1, -1)
+    Set pic = ws.Shapes.AddPicture(archivo, 0, -1, l, t, -1, -1)
     For Each shp In ws.Shapes
         If shp.Name = "LOGO" Then
             shp.Delete
@@ -755,7 +755,7 @@ Public Function PonerLogo(ByVal ws As Worksheet, ByVal archivo As String, ByVal 
     If h / pic.Height < r Then r = h / pic.Height
     pic.Width = pic.Width * r
     If pic.Height > h Then pic.Height = h
-    pic.Left = L + (w - pic.Width) / 2
+    pic.Left = l + (w - pic.Width) / 2
     pic.Top = t + (h - pic.Height) / 2
     pic.Placement = 2
     pic.Name = "LOGO"
