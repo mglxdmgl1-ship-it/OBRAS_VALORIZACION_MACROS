@@ -109,7 +109,7 @@ Public Const D_INF415 As String = "C26"
 Public Const D_MSG As String = "C29"
 Public Const D_MSGPDF As String = "C30"
 Public Const D_MSGINF As String = "C31"
-Public Const D_RESID As String = "C40"           ' nombre del residente (informes 4.10 - 4.15)
+Public Const D_RESID As String = "C40"           ' nombre del residente (informes MOV. ALMACÉN - CONTROL DE EQUIPO)
 Public Const D_SUPER As String = "C41"           ' nombre del supervisor / inspector
 
 ' ---- textos fijos

@@ -146,7 +146,7 @@ Public Sub PaginaFormato(ByVal ws As Worksheet, ByVal cual As String)
 End Sub
 
 Public Sub AjustarInforme(ByVal ws As Worksheet)
-    ' cuadros del informe (INV., 4.10, 4.11, 4.12, 4.15): todo el ancho en una página, títulos repetidos, sin cortes
+    ' cuadros del informe (INV., movimiento, ingresos – egresos, saldo valorizado, control de equipo): todo el ancho en una página, títulos repetidos, sin cortes
     Dim tit As String, nm As String, u As Long, horiz As Boolean
     nm = UCase(ws.Name)
     horiz = True
@@ -158,7 +158,7 @@ Public Sub AjustarInforme(ByVal ws As Worksheet)
         On Error Resume Next
         ws.PageSetup.PrintArea = "$A$1:$J$" & u
         On Error GoTo 0
-    ElseIf Left(nm, 4) = "4.15" Then
+    ElseIf Left(nm, 7) = "CONTROL" Then
         tit = "$1:$13"
     Else
         tit = "$1:$12"
@@ -472,7 +472,7 @@ Public Sub PdfTodo()
     Else
         gPorUno = 2
     End If
-    inf = Pregunta("¿Exportar también el INFORME MENSUAL de almacén (INV., 4.10, 4.11, 4.12) y de equipo mecánico (4.15)" & _
+    inf = Pregunta("¿Exportar también el INFORME MENSUAL de almacén (inventario, movimiento, ingresos – egresos y saldo valorizado) y de equipo mecánico" & _
                    " en Excel y PDF?", "PDF DE TODO", True)
     carpeta = ElegirCarpetaDesde("Elija la carpeta donde se guardarán todos los archivos (Guardar en...)", CarpetaSalida(""))
     If carpeta = "" Then

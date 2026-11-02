@@ -142,7 +142,7 @@ End Sub
 
 
 Public Sub LeerAlmacen()
-    ' insumos y movimientos del mes desde el INV. y el cuadro 4.10
+    ' insumos y movimientos del mes desde el INV. y el cuadro MOV. ALMACÉN
     LeerCuadrosAlmacen
 End Sub
 

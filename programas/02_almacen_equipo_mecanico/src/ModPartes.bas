@@ -107,7 +107,7 @@ Public Sub LeerPartesHoja()
 End Sub
 
 Public Sub LeerPartes()
-    ' partes del mes desde el cuadro 4.15 (combustible y horas de cada día)
+    ' partes del mes desde el cuadro CONTROL DE EQUIPO (combustible y horas de cada día)
     LeerPartes415
 End Sub
 
@@ -201,7 +201,7 @@ Public Function ArmarPartes(ByVal conPDF As Boolean, ByVal porEquipo As Boolean)
     LeerPartes
     If pnPar = 0 Then
         Fin cm
-        Aviso "No hay combustible ni horas en el cuadro 4.15 del mes (registre los equipos en EQUIPOS, pulse ACTUALIZAR " & _
+        Aviso "No hay combustible ni horas en el cuadro CONTROL DE EQUIPO del mes (registre los equipos en EQUIPOS, pulse ACTUALIZAR " & _
               "CUADROS y anote cada día el combustible y las horas).", "PARTES DIARIOS", 48
         Exit Function
     End If
@@ -453,7 +453,7 @@ Public Function ArmarPartes(ByVal conPDF As Boolean, ByVal porEquipo As Boolean)
     ArmarPartes = nG
 
     msg = "Se armaron " & nG & " partes diarios (" & totPag & " hojas) del mes de " & MesTexto() & "."
-    If pnMal > 0 Then msg = msg & vbCrLf & "Atención: " & pnMal & " equipo(s) del 4.15 ya no están en EQUIPOS (pulse ACTUALIZAR CUADROS)."
+    If pnMal > 0 Then msg = msg & vbCrLf & "Atención: " & pnMal & " equipo(s) del CONTROL DE EQUIPO ya no están en EQUIPOS (pulse ACTUALIZAR CUADROS)."
     If nG > 0 And Not gAcum Then msg = msg & vbCrLf & vbCrLf & "Revise (y corrija si hace falta) la hoja PARTE_DIARIO; luego use el botón " & _
                        "PDF PARTES DIARIOS (A5, o A4 con dos por cara)."
     If Not gSilencio Then

@@ -5,7 +5,7 @@ Option Explicit
 '  CUADRO DE MOVIMIENTO DIARIO DE EQUIPOS Y MAQUINARIA (hoja MOV. EQUIPOS)
 '  Una fila por equipo y día (o por cada trabajo del día): operador, horario de mañana y tarde,
 '  horómetro inicial y final, combustible, partida y trabajo realizado.
-'  De aquí salen el 4.15 (horas y galones por día), los partes diarios y el resumen de EQUIPOS.
+'  De aquí salen el CONTROL DE EQUIPO (horas y galones por día), los partes diarios y el resumen de EQUIPOS.
 '  También: REVISIÓN de datos antes de generar los formatos finales.
 '==========================================================================================
 
@@ -67,7 +67,7 @@ Public Function EsUnidadDia(ByVal und As String) As Boolean
 End Function
 
 Public Function EsUnidadHora(ByVal und As String) As Boolean
-    ' H.M., H.E., HORA: en el 4.15 las horas van como tiempo (formato [h]:mm, igual que el informe)
+    ' H.M., H.E., HORA: en el CONTROL DE EQUIPO las horas van como tiempo (formato [h]:mm, igual que el informe)
     Dim s As String
     s = Normal(und)
     EsUnidadHora = (Not EsUnidadDia(und)) And (InStr(s, "H.") > 0 Or InStr(s, "HORA") > 0 Or s = "HM" Or s = "HE")
@@ -331,8 +331,8 @@ Public Function RevisarDatos() As Long
     If Maestro() = "" And auModo <> "NO" Then Obs wr, r, "DATOS", ws.Range(D_MAESTRO).Row, "MAESTRO DE OBRA", _
         "Falta el nombre: es quien pide los materiales en el kardex cuando DETALLE SALIDAS no dice otro."
 
-    ' 4.10: saldos negativos
-    Set ws = HojaPref("4.10")
+    ' MOV. ALMACÉN: saldos negativos
+    Set ws = HojaPref(H_MOV)
     last = UltimaFila(ws, 6, 13, 8000)
     For i = 13 To last
         If Txt(ws.Cells(i, 6).Value) = "ENTRADA" Then
@@ -350,7 +350,7 @@ Public Function RevisarDatos() As Long
             If Fecha(ws.Cells(i, 2).Value) > 0 Then
                 dato = Format(CDate(Fecha(ws.Cells(i, 2).Value)), "dd/mm") & "  ítem " & Txt(ws.Cells(i, 3).Value)
                 If Not EsNum(ws.Cells(i, 6).Value) Then
-                    Obs wr, r, ws.Name, i, dato, "Esta salida ya no está en el 4.10 (bórrela o corrija la fecha / el ítem)."
+                    Obs wr, r, ws.Name, i, dato, "Esta salida ya no está en el MOV. ALMACÉN (bórrela o corrija la fecha / el ítem)."
                 Else
                     If Limpio(ws.Cells(i, 8).Value) = "" And auModo = "NO" Then Obs wr, r, ws.Name, i, dato, "Falta quién pide."
                     If Limpio(ws.Cells(i, 9).Value) = "" And auObs = "" Then Obs wr, r, ws.Name, i, dato, _
@@ -418,7 +418,7 @@ Public Function RevisarDatos() As Long
         Next x
     End If
 
-    ' EQUIPOS: horas solo en el 4.15 y saldo de la O/S
+    ' EQUIPOS: horas solo en el CONTROL DE EQUIPO y saldo de la O/S
     Set ws = Hoja("EQUIPOS")
     For k = 1 To enEq
         i = 0
@@ -427,7 +427,7 @@ Public Function RevisarDatos() As Long
         Next x
         If i > 0 Then
             If Not TieneMov(eCod(k)) And Num(ws.Cells(i, EC_DIAS).Value) > 0 Then Obs wr, r, "EQUIPOS", i, eCod(k), _
-                "Tiene horas o combustible en el 4.15 pero ninguna fila en MOV. EQUIPOS (el parte saldrá sin horario real)."
+                "Tiene horas o combustible en el CONTROL DE EQUIPO pero ninguna fila en MOV. EQUIPOS (el parte saldrá sin horario real)."
             If EsNum(ws.Cells(i, EC_SALDO).Value) Then
                 If Num(ws.Cells(i, EC_SALDO).Value) < 0 Then Obs wr, r, "EQUIPOS", i, eCod(k), "Se pasó de la cantidad contratada en la O/S."
             End If

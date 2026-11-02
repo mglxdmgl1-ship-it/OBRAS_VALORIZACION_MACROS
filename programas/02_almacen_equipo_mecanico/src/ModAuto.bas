@@ -3,7 +3,7 @@ Option Explicit
 
 '==========================================================================================
 '  DATOS QUE COMPLETAN EL KARDEX Y EL PARTE DIARIO
-'   - DETALLE SALIDAS: N° de vale, PEDIDO POR y destino de cada salida del 4.10 (kardex y bincard)
+'   - DETALLE SALIDAS: N° de vale, PEDIDO POR y destino de cada salida del MOV. ALMACÉN (kardex y bincard)
 '   - AUTOLLENADO (opcional): jornada para equipos sin horario, trabajo por defecto, horómetro
 '     inicial y PEDIDO POR cuando el DETALLE SALIDAS no lo tiene (maestro de obra o por rubro).
 '  Los nombres de los obreros NO se llenan solos: PEDIDO POR = lo escrito en DETALLE SALIDAS
@@ -228,7 +228,7 @@ Public Sub DatosEquipo(ByVal cod As String, ByRef oper As String, ByRef m1 As Do
 End Sub
 
 Public Sub AutoParte(ByVal k As Long, ByVal f As Double, ByVal g As Double, ByVal h As Double, ByRef horo As Variant)
-    ' una línea del parte desde el 4.15 (equipo sin filas en MOV. EQUIPOS): horario desde la jornada
+    ' una línea del parte desde el CONTROL DE EQUIPO (equipo sin filas en MOV. EQUIPOS): horario desde la jornada
     Dim m1 As Double, m2 As Double, t1 As Double, t2 As Double, oper As String, trab As String
     Dim fin As Double, esDia As Boolean
     oper = eOper(k)

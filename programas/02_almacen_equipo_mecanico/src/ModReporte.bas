@@ -5,22 +5,22 @@ Option Explicit
 '  CUADROS DEL INFORME DENTRO DEL PROGRAMA (como el informe de ejemplo, todo en un solo archivo)
 '   ALMACÉN : INV. 2026  -> se digita: un renglón por ingreso (O/C, P.U., cantidad, fecha); los
 '                           renglones sin unidad ni cantidad son los RUBROS (1, 2, 3...)
-'             4.10 MOV   -> se digita: saldo anterior y las cantidades de cada día (ENTRADA/SALIDA)
-'             4.11 y 4.12 -> se calculan solos con fórmulas
+'             MOV. ALMACEN   -> se digita: saldo anterior y las cantidades de cada día (ENTRADA/SALIDA)
+'             ingresos – egresos y saldo valorizado -> se calculan solos con fórmulas
 '   EQUIPOS : EQUIPOS    -> se digita: datos de cada máquina
-'             4.15       -> se digita: combustible (GAL) y horas de cada día
-'  ACTUALIZAR CUADROS arma las filas de 4.10, 4.11, 4.12 y 4.15 con lo que hay en INV. y EQUIPOS,
+'             CONTROL DE EQUIPO       -> se digita: combustible (GAL) y horas de cada día
+'  ACTUALIZAR CUADROS arma las filas de movimiento, ingresos – egresos, saldo valorizado y control de equipo con lo que hay en INV. y EQUIPOS,
 '  sin perder lo ya digitado. Kardex, bincard y partes diarios se arman desde estos cuadros.
 '==========================================================================================
 
 Private Const GRIS_DOMINGO As Long = 14277081      ' RGB(217,217,217)
-Private Const F0 As Long = 13                       ' primera fila de datos de 4.10, 4.11 y 4.12
-Private Const F0Q As Long = 14                      ' primera fila de datos de 4.15
-Private Const D1 As Long = 8                        ' 4.10 / 4.11: columna del día 1 (H)
-Private Const D1Q As Long = 10                      ' 4.15: columna del día 1 (J)
-Private Const C_RAR As Long = 44                    ' 4.15: código en la fila de horas (AR, oculta)
-Private Const C_RAS As Long = 45                    ' 4.15: código en la fila de combustible (AS, oculta)
-Private Const C_RAT As Long = 46                    ' 4.15: código del combustible (AT, oculta)
+Private Const F0 As Long = 13                       ' primera fila de datos de MOV. ALMACÉN, ingresos – egresos y saldo valorizado
+Private Const F0Q As Long = 14                      ' primera fila de datos de CONTROL DE EQUIPO
+Private Const D1 As Long = 8                        ' MOV. ALMACÉN / INGRESOS – EGRESOS: columna del día 1 (H)
+Private Const D1Q As Long = 10                      ' CONTROL DE EQUIPO: columna del día 1 (J)
+Private Const C_RAR As Long = 44                    ' CONTROL DE EQUIPO: código en la fila de horas (AR, oculta)
+Private Const C_RAS As Long = 45                    ' CONTROL DE EQUIPO: código en la fila de combustible (AS, oculta)
+Private Const C_RAT As Long = 46                    ' CONTROL DE EQUIPO: código del combustible (AT, oculta)
 
 ' ---- inventario leído (INV.)
 Public cN As Long, rN As Long
@@ -28,17 +28,47 @@ Public cItem() As String, cDes() As String, cUnd() As String, cTipo() As String,
 Public cPU() As Double, cCant() As Double, cFec() As Double, cRub() As Long
 Public rNom() As String, rNum() As String
 Private nDup As Long
-' ---- lo digitado en 4.10 (por ítem)
+' ---- lo digitado en MOV. ALMACÉN (por ítem)
 Private tN As Long, tCol As Collection
 Private tItem() As String, tG() As Variant, tE() As Variant, tS() As Variant, tUsado() As Boolean
-' ---- lo digitado en 4.15 (por equipo)
+' ---- lo digitado en CONTROL DE EQUIPO (por equipo)
 Private qN As Long, qCol As Collection
 Private qCod() As String, qG() As Variant, qH() As Variant
 
 
 '========================================================================== AUXILIARES
+' ---- nombres de las hojas de los cuadros (se buscan por el comienzo del nombre)
+Public Const H_MOV As String = "MOV. ALMACEN"
+Public Const H_IE As String = "INGRESOS - EGRESOS"
+Public Const H_SV As String = "SALDO VALORIZADO"
+Public Const H_EQM As String = "CONTROL EQUIPO"
+
+Private Sub PintarRubro(ByVal ws As Worksheet, ByVal r As Long, ByVal nF As Long, ByVal c2 As Long, ByVal g As Long)
+    ' barra de color en las filas de rubro (1 MATERIALES, 2 MATERIALES ELÉCTRICOS...), un color por rubro
+    Dim col As Long
+    Select Case (g - 1) Mod 6
+        Case 0
+            col = RGB(189, 215, 238)
+        Case 1
+            col = RGB(198, 239, 206)
+        Case 2
+            col = RGB(255, 230, 153)
+        Case 3
+            col = RGB(248, 203, 173)
+        Case 4
+            col = RGB(217, 210, 233)
+        Case Else
+            col = RGB(180, 222, 222)
+    End Select
+    On Error Resume Next
+    With ws.Range(ws.Cells(r, 2), ws.Cells(r + nF - 1, c2))
+        .Interior.Color = col
+        .Font.Bold = True
+    End With
+End Sub
+
 Public Function HojaPref(ByVal pref As String) As Worksheet
-    ' hoja cuyo nombre empieza con pref ("INV.", "4.10", "4.11", "4.12", "4.15")
+    ' hoja cuyo nombre empieza con pref ("INV.", "MOV. ALMACÉN", "INGRESOS – EGRESOS", "SALDO VALORIZADO", "CONTROL DE EQUIPO")
     Dim ws As Worksheet
     For Each ws In ThisWorkbook.Worksheets
         If UCase(Left(ws.Name, Len(pref))) = UCase(pref) Then
@@ -150,7 +180,7 @@ Private Function EsRubro(ByVal ws As Worksheet, ByVal r As Long) As Boolean
 End Function
 
 
-'========================================================================== LECTURA DE INV. Y 4.10
+'========================================================================== LECTURA DE INV. Y MOV. ALMACÉN
 Public Sub LeerInv()
     Dim ws As Worksheet, last As Long, r As Long, v As Variant, a As String, b As String, cur As Long, n As Long
     Dim cnt() As Long, col As New Collection
@@ -204,9 +234,9 @@ Public Sub LeerInv()
 End Sub
 
 Private Sub Leer410()
-    ' cantidades ya digitadas en 4.10, por ítem
+    ' cantidades ya digitadas en MOV. ALMACÉN, por ítem
     Dim ws As Worksheet, last As Long, r As Long, d As Long, key As String, n As Long
-    Set ws = HojaPref("4.10")
+    Set ws = HojaPref(H_MOV)
     Set tCol = New Collection
     tN = 0
     last = UltimaFila(ws, 6, F0, 8000)
@@ -232,9 +262,9 @@ Private Sub Leer410()
 End Sub
 
 Private Sub Leer415()
-    ' combustible y horas ya digitados en 4.15, por código de equipo
+    ' combustible y horas ya digitados en CONTROL DE EQUIPO, por código de equipo
     Dim ws As Worksheet, last As Long, r As Long, d As Long, key As String, n As Long
-    Set ws = HojaPref("4.15")
+    Set ws = HojaPref(H_EQM)
     Set qCol = New Collection
     qN = 0
     last = ws.UsedRange.Row + ws.UsedRange.Rows.Count
@@ -253,7 +283,7 @@ Private Sub Leer415()
             qCol.Add qN, UCase(key)
         End If
     Next r
-    ' equipos con filas en MOV. EQUIPOS: sus horas y galones del 4.15 salen de ahí
+    ' equipos con filas en MOV. EQUIPOS: sus horas y galones del CONTROL DE EQUIPO salen de ahí
     Dim x As Long, i As Long, k As Long, cods As New Collection
     LeerMovEq
     For x = 1 To mqN
@@ -297,11 +327,11 @@ Public Sub ActualizarCuadrosBoton()
 End Sub
 
 Public Function ActualizarCuadros(ByVal silencio As Boolean) As String
-    ' arma 4.10, 4.11, 4.12 y 4.15 con INV. y EQUIPOS, conservando lo digitado; devuelve un resumen
+    ' arma movimiento, ingresos – egresos, saldo valorizado y control de equipo con INV. y EQUIPOS, conservando lo digitado; devuelve un resumen
     Dim cm As Long, msg As String, neg As String, nNeg As Long, perd As String, nPerd As Long, k As Long, i As Long
     Dim fila410() As Long, d As Long, s As Double
     ActualizarCuadros = ""
-    Inicio cm, "Actualizando los cuadros 4.10, 4.11, 4.12 y 4.15..."
+    Inicio cm, "Actualizando los cuadros..."
     On Error GoTo Falla
     LeerInv
     Leer410
@@ -339,16 +369,16 @@ Public Function ActualizarCuadros(ByVal silencio As Boolean) As String
     Fin cm
     ' página de cada cuadro: todo el ancho en una hoja, títulos repetidos, sin cortes
     AjustarInforme HojaPref("INV.")
-    AjustarInforme HojaPref("4.10")
-    AjustarInforme HojaPref("4.11")
-    AjustarInforme HojaPref("4.12")
-    AjustarInforme HojaPref("4.15")
+    AjustarInforme HojaPref(H_MOV)
+    AjustarInforme HojaPref(H_IE)
+    AjustarInforme HojaPref(H_SV)
+    AjustarInforme HojaPref(H_EQM)
     SincronizarAuto                               ' equipos y rubros en AUTOLLENADO
-    ListarSalidas                                 ' una fila por salida del 4.10 en DETALLE SALIDAS
-    msg = "Cuadros actualizados (" & MesTexto() & "): " & cN & " ítems en " & rN & " rubros del INV.; " & enEq & " equipos en el 4.15."
+    ListarSalidas                                 ' una fila por salida del MOV. ALMACÉN en DETALLE SALIDAS
+    msg = "Cuadros actualizados (" & MesTexto() & "): " & cN & " ítems en " & rN & " rubros del INV.; " & enEq & " equipos en el CONTROL DE EQUIPO."
     If nDup > 0 Then msg = msg & vbCrLf & "Atención: " & nDup & " ítem(s) con número repetido en INV. (se les agregó -1, -2...)."
-    If nNeg > 0 Then msg = msg & vbCrLf & vbCrLf & "SALDO NEGATIVO en " & nNeg & " ítem(s) (revise las salidas del 4.10):" & neg
-    If nPerd > 0 Then msg = msg & vbCrLf & vbCrLf & "Atención: había cantidades en el 4.10 de ítems que ya no están en INV.:" & perd & _
+    If nNeg > 0 Then msg = msg & vbCrLf & vbCrLf & "SALDO NEGATIVO en " & nNeg & " ítem(s) (revise las salidas del MOV. ALMACÉN):" & neg
+    If nPerd > 0 Then msg = msg & vbCrLf & vbCrLf & "Atención: había cantidades en el MOV. ALMACÉN de ítems que ya no están en INV.:" & perd & _
                             " (se quitaron; si fue un cambio de número, vuelva a digitarlas)."
     Mensaje D_MSG, "Cuadros actualizados el " & Format(Now, "dd/mm/yyyy hh:mm") & ": " & cN & " ítems, " & enEq & _
                    " equipos, " & nNeg & " con saldo negativo."
@@ -377,18 +407,20 @@ End Sub
 
 Private Sub Armar410(ByRef fila410() As Long)
     Dim ws As Worksheet, wsT As Worksheet, r As Long, g As Long, k As Long, i As Long, d As Long, v() As Variant
-    Dim hayE As Boolean
-    Set ws = HojaPref("4.10")
+    Dim hayE As Boolean, rubF() As Long
+    Set ws = HojaPref(H_MOV)
     Set wsT = Hoja("FMT_410")
-    Encabezado ws, "4.10 CUADRO DE MOVIMIENTO DIARIO DE ALMACEN", 4, 40, 5, 6, 7, 8, 5, 7
+    Encabezado ws, "CUADRO DE MOVIMIENTO DIARIO DE ALMACÉN", 4, 40, 5, 6, 7, 8, 5, 7
     ws.Cells(10, 7).Value = "SALDO" & vbLf & NombreMes(MesAnterior()) & " " & Year(CDate(MesAnterior()))
     ws.Cells(10, 39).Value = "TOTAL"
     ws.Cells(10, 40).Value = "SALDO" & vbLf & NombreMes(MesInicio()) & " " & Year(CDate(MesInicio()))
     CabeceraDias ws, 10, 11, D1
     LimpiarDatos ws, F0
     r = F0
+    ReDim rubF(1 To rN + 1)
     For g = 1 To rN
         CopiarDe wsT, 13, 14, ws, r
+        rubF(g) = r
         ws.Cells(r, 2).NumberFormat = "@"
         ws.Cells(r, 2).Value = rNum(g)
         ws.Cells(r, 3).Value = rNom(g)
@@ -429,6 +461,9 @@ Private Sub Armar410(ByRef fila410() As Long)
         Next k
     Next g
     Domingos ws, D1, F0, r - 1
+    For g = 1 To rN
+        PintarRubro ws, rubF(g), 2, 40, g
+    Next g
     On Error Resume Next
     ws.PageSetup.PrintArea = "$A$1:$AN$" & IIf(r - 1 < F0, F0, r - 1)
     ws.PageSetup.PrintTitleRows = "$10:$12"
@@ -436,13 +471,14 @@ Private Sub Armar410(ByRef fila410() As Long)
 End Sub
 
 Private Sub Armar411()
-    ' 4.11: mismas filas que el 4.10, todo con fórmulas que leen el 4.10
+    ' INGRESOS – EGRESOS: mismas filas que el MOV. ALMACÉN, todo con fórmulas que leen el MOV. ALMACÉN
     Dim ws As Worksheet, wsT As Worksheet, w10 As Worksheet, r As Long, last As Long, h As String, c As Long
-    Set ws = HojaPref("4.11")
+    Dim rubF() As Long, nRub As Long
+    Set ws = HojaPref(H_IE)
     Set wsT = Hoja("FMT_411")
-    Set w10 = HojaPref("4.10")
+    Set w10 = HojaPref(H_MOV)
     h = "'" & w10.Name & "'!"
-    Encabezado ws, "4.11 CUADRO RESUMEN DE ALMACÉN (INGRESOS – EGRESOS)", 3, 42, 5, 6, 7, 8, 5, 7
+    Encabezado ws, "CUADRO RESUMEN DE ALMACÉN (INGRESOS – EGRESOS)", 3, 42, 5, 6, 7, 8, 5, 7
     ws.Cells(10, 7).Value = "SALDO " & NombreMes(MesAnterior()) & " " & Year(CDate(MesAnterior()))
     ws.Cells(10, 39).Value = "TOTAL"
     ws.Cells(10, 40).Value = "INGRESOS"
@@ -451,6 +487,7 @@ Private Sub Armar411()
     CabeceraDias ws, 10, 11, D1
     LimpiarDatos ws, F0
     last = UltimaFila(w10, 6, F0, 8000)
+    ReDim rubF(1 To (last - F0) \ 2 + 2)
     r = F0
     Do While r <= last
         If Txt(w10.Cells(r, 6).Value) = "ENTRADA" Then
@@ -470,10 +507,15 @@ Private Sub Armar411()
             CopiarDe wsT, 13, 14, ws, r
             ws.Cells(r, 2).Formula = "=" & h & Dir1(w10, r, 2) & "&"""""
             ws.Cells(r, 3).Formula = "=" & h & Dir1(w10, r, 3) & "&"""""
+            nRub = nRub + 1
+            rubF(nRub) = r
         End If
         r = r + 2
     Loop
     Domingos ws, D1, F0, r - 1
+    For c = 1 To nRub
+        PintarRubro ws, rubF(c), 2, 42, c
+    Next c
     On Error Resume Next
     ws.PageSetup.PrintArea = "$B$1:$AP$" & IIf(r - 1 < F0, F0, r - 1)
     ws.PageSetup.PrintTitleRows = "$10:$12"
@@ -481,14 +523,14 @@ Private Sub Armar411()
 End Sub
 
 Private Sub Armar412(ByRef fila410() As Long)
-    ' 4.12: saldo anterior, ingresos, salidas y saldo, valorizados con el P.U. del INV.
+    ' SALDO VALORIZADO: saldo anterior, ingresos, salidas y saldo, valorizados con el P.U. del INV.
     Dim ws As Worksheet, wsT As Worksheet, w10 As Worksheet, r As Long, g As Long, k As Long, f1 As Long, f2 As Long
     Dim h As String, c As Long, a As Long
-    Set ws = HojaPref("4.12")
+    Set ws = HojaPref(H_SV)
     Set wsT = Hoja("FMT_412")
-    Set w10 = HojaPref("4.10")
+    Set w10 = HojaPref(H_MOV)
     h = "'" & w10.Name & "'!"
-    Encabezado ws, "4.12 SALDO VALORIZADO DE MATERIALES", 4, 14, 5, 7, 8, 9, 7, 9
+    Encabezado ws, "SALDO VALORIZADO DE MATERIALES", 4, 14, 5, 7, 8, 9, 7, 9
     ws.Cells(11, 7).Value = "SALDO " & NombreMes(MesAnterior()) & " " & Year(CDate(MesAnterior()))
     ws.Cells(11, 9).Value = "INGRESOS " & NombreMes(MesInicio()) & " " & Year(CDate(MesInicio()))
     ws.Cells(11, 11).Value = "SALIDAS " & NombreMes(MesInicio()) & " " & Year(CDate(MesInicio()))
@@ -501,6 +543,7 @@ Private Sub Armar412(ByRef fila410() As Long)
         ws.Cells(r, 2).NumberFormat = "@"
         ws.Cells(r, 2).Value = rNum(g)
         ws.Cells(r, 3).Value = rNom(g)
+        PintarRubro ws, r, 1, 14, g
         r = r + 1
         For k = 1 To cN
             If cRub(k) = g Then
@@ -590,7 +633,7 @@ Private Sub Armar415()
     Dim usados() As Boolean, fmtH As String
     LeerEquipos
     Leer415
-    Set ws = HojaPref("4.15")
+    Set ws = HojaPref(H_EQM)
     Set wsT = Hoja("FMT_415")
     ent = Dato(D_ENTIDAD)
     ws.Cells(1, 2).Value = ent
@@ -740,7 +783,7 @@ End Sub
 
 '========================================================================== DATOS PARA KARDEX, BINCARD Y PARTES
 Public Sub LeerCuadrosAlmacen()
-    ' llena las listas que usan el KARDEX y el BINCARD (ModKardex) a partir de INV. y 4.10
+    ' llena las listas que usan el KARDEX y el BINCARD (ModKardex) a partir de INV. y MOV. ALMACÉN
     Dim k As Long, i As Long, d As Long, m As Long, n As Long, q As Double, j As Long, p As Long
     Dim ped As String, obs As String, vale As String
     LeerInv
@@ -825,14 +868,14 @@ Public Sub LeerCuadrosAlmacen()
 End Sub
 
 Public Sub LeerPartes415()
-    ' llena las listas que usa ArmarPartes (ModPartes) con el combustible y las horas del 4.15
+    ' llena las listas que usa ArmarPartes (ModPartes) con el combustible y las horas del CONTROL DE EQUIPO
     Dim ws As Worksheet, last As Long, r As Long, d As Long, k As Long, n As Long, g As Double, h As Double
     Dim horo As Variant
     LeerEquipos
     LeerAuto
     pnPar = 0
     pnMal = 0
-    Set ws = HojaPref("4.15")
+    Set ws = HojaPref(H_EQM)
     last = ws.UsedRange.Row + ws.UsedRange.Rows.Count
     n = 0
     For r = F0Q To last
@@ -881,7 +924,7 @@ End Sub
 
 '========================================================================== DETALLE SALIDAS
 Public Sub ListarSalidas()
-    ' una fila por salida (día e ítem) del 4.10, conservando el N° de vale, PEDIDO POR y destino ya escritos
+    ' una fila por salida (día e ítem) del MOV. ALMACÉN, conservando el N° de vale, PEDIDO POR y destino ya escritos
     Dim wd As Worksheet, v As Variant, i As Long, n As Long, k As Long, d As Long, r As Long, t As Long, key As String
     Dim col As New Collection, kF() As Double, kI() As String, kVa() As Variant, kPe() As Variant, kDe() As Variant
     Dim usado() As Boolean, q As Double
@@ -932,7 +975,7 @@ Public Sub ListarSalidas()
             End If
         Next k
     Next d
-    ' lo escrito para salidas que ya no están en el 4.10 queda al final (la REVISIÓN lo avisa)
+    ' lo escrito para salidas que ya no están en el MOV. ALMACÉN queda al final (la REVISIÓN lo avisa)
     For i = 1 To t
         If Not usado(i) And r <= DS1 Then
             If Txt(kVa(i)) <> "" Or Txt(kPe(i)) <> "" Or Txt(kDe(i)) <> "" Then
@@ -951,9 +994,9 @@ End Sub
 
 '========================================================================== CIERRE DEL MES Y NUEVA OBRA
 Public Sub CerrarCuadros()
-    ' saldo del mes -> saldo anterior (4.10); horas del mes -> acumulado anterior (EQUIPOS); vacía los días
+    ' saldo del mes -> saldo anterior (MOV. ALMACÉN); horas del mes -> acumulado anterior (EQUIPOS); vacía los días
     Dim ws As Worksheet, last As Long, r As Long, s As Double, fe As Long, we As Worksheet
-    Set ws = HojaPref("4.10")
+    Set ws = HojaPref(H_MOV)
     Application.Calculate
     last = UltimaFila(ws, 6, F0, 8000)
     For r = F0 To last
@@ -964,7 +1007,7 @@ Public Sub CerrarCuadros()
             ws.Range(ws.Cells(r, D1), ws.Cells(r + 1, D1 + 30)).ClearContents
         End If
     Next r
-    Set ws = HojaPref("4.15")
+    Set ws = HojaPref(H_EQM)
     Set we = Hoja("EQUIPOS")
     last = ws.UsedRange.Row + ws.UsedRange.Rows.Count
     For r = F0Q To last
@@ -989,22 +1032,22 @@ Public Sub VaciarCuadros()
     On Error Resume Next
     ws.Range("G2:G" & Application.WorksheetFunction.Max(last, 301)).Formula = "=IF(F2="""","""",E2*F2)"
     On Error GoTo 0
-    LimpiarDatos HojaPref("4.10"), F0
-    LimpiarDatos HojaPref("4.11"), F0
-    LimpiarDatos HojaPref("4.12"), F0
-    LimpiarDatos HojaPref("4.15"), F0Q
+    LimpiarDatos HojaPref(H_MOV), F0
+    LimpiarDatos HojaPref(H_IE), F0
+    LimpiarDatos HojaPref(H_SV), F0
+    LimpiarDatos HojaPref(H_EQM), F0Q
 End Sub
 
 
 '========================================================================== TRAER LOS DATOS DEL FORMATO ANTERIOR
 Public Sub TraerDatosAnteriores()
-    ' pasa CATALOGO + MOVIMIENTOS (y PARTES) del formato anterior al INV., al 4.10 y al 4.15
+    ' pasa CATALOGO + MOVIMIENTOS (y PARTES) del formato anterior al INV., al MOV. ALMACÉN y al CONTROL DE EQUIPO
     Dim cm As Long, ws As Worksheet, w10 As Worksheet, g As Long, k As Long, r As Long, m As Long, d As Long
     Dim grupos As New Collection, gNom() As String, nG As Long, cnt() As Long, itNum() As String, i As Long, j As Long
     Dim ing As Double, fec As Double, tipo As String, prov As String, last As Long, v() As Variant, lo As Object
     Dim nItems As Long, nEq As Long, x As Long, hh() As Double, cc() As Double, w15 As Worksheet
     If Not Pregunta("Se copian los datos del formato anterior (hojas CATALOGO, MOVIMIENTOS y PARTES) al INV. 2026, " & _
-                    "al 4.10 y al 4.15." & vbCrLf & vbCrLf & "Lo que hoy está en el INV. y en los cuadros se reemplaza. ¿Continuar?", _
+                    "al MOV. ALMACÉN y al CONTROL DE EQUIPO." & vbCrLf & vbCrLf & "Lo que hoy está en el INV. y en los cuadros se reemplaza. ¿Continuar?", _
                     "TRAER DATOS ANTERIORES", False) Then Exit Sub
     Inicio cm, "Pasando los datos al INV. y a los cuadros..."
     On Error GoTo Falla
@@ -1069,7 +1112,7 @@ Public Sub TraerDatosAnteriores()
     Fin cm
     ActualizarCuadros True
     Inicio cm, "Copiando las cantidades por día..."
-    Set w10 = HojaPref("4.10")
+    Set w10 = HojaPref(H_MOV)
     last = UltimaFila(w10, 6, F0, 8000)
     For r = F0 To last
         If Txt(w10.Cells(r, 6).Value) = "ENTRADA" Then
@@ -1100,7 +1143,7 @@ Public Sub TraerDatosAnteriores()
     ' equipos: horas y combustible de la hoja PARTES
     LeerPartesHoja
     TraerMovAnterior                              ' partes -> MOV. EQUIPOS (cuadro de movimiento diario)
-    Set w15 = HojaPref("4.15")
+    Set w15 = HojaPref(H_EQM)
     last = w15.UsedRange.Row + w15.UsedRange.Rows.Count
     For r = F0Q To last
         If Txt(w15.Cells(r, C_RAS).Value) <> "" Then
@@ -1132,10 +1175,10 @@ Public Sub TraerDatosAnteriores()
     Inicio cm, "Terminando..."
     Fin cm
     Aviso "Listo: " & nItems & " ítems pasaron al INV. 2026 (con su saldo anterior y las entradas y salidas de cada día en el " & _
-          "4.10) y " & nEq & " equipo(s) al 4.15. Los destinos de las salidas pasaron a DETALLE SALIDAS " & _
-          "y los partes a MOV. EQUIPOS: complete ahí lo que falte (horario, horómetro, operador) y pulse ACTUALIZAR Y REVISAR." & vbCrLf & vbCrLf & "Desde ahora registre directamente en el INV., el 4.10 " & _
-          "y el 4.15.", "TRAER DATOS ANTERIORES"
-    HojaPref("4.10").Activate
+          "MOV. ALMACÉN) y " & nEq & " equipo(s) al CONTROL DE EQUIPO. Los destinos de las salidas pasaron a DETALLE SALIDAS " & _
+          "y los partes a MOV. EQUIPOS: complete ahí lo que falte (horario, horómetro, operador) y pulse ACTUALIZAR Y REVISAR." & vbCrLf & vbCrLf & "Desde ahora registre directamente en el INV., el MOV. ALMACÉN " & _
+          "y el CONTROL DE EQUIPO.", "TRAER DATOS ANTERIORES"
+    HojaPref(H_MOV).Activate
     Exit Sub
 Falla:
     Fin cm
@@ -1214,8 +1257,8 @@ End Sub
 Public Function ExportarInformeAlmacen(ByVal preguntarPdf As Boolean) As String
     Dim s As String
     s = ActualizarCuadros(True)
-    ExportarInformeAlmacen = Exportar(Array(HojaPref("INV.").Name, HojaPref("4.10").Name, HojaPref("4.11").Name, _
-                                            HojaPref("4.12").Name), "ALMACEN DE OBRA", preguntarPdf)
+    ExportarInformeAlmacen = Exportar(Array(HojaPref("INV.").Name, HojaPref(H_MOV).Name, HojaPref(H_IE).Name, _
+                                            HojaPref(H_SV).Name), "ALMACEN DE OBRA", preguntarPdf)
 End Function
 
 Public Sub ExportarInformeEquiposBoton()
@@ -1226,5 +1269,5 @@ End Sub
 Public Function ExportarInformeEquipos(ByVal preguntarPdf As Boolean) As String
     Dim s As String
     s = ActualizarCuadros(True)
-    ExportarInformeEquipos = Exportar(Array(HojaPref("4.15").Name), "CONTROL DE EQUIPO MECANICO", preguntarPdf)
+    ExportarInformeEquipos = Exportar(Array(HojaPref(H_EQM).Name), "CONTROL DE EQUIPO MECANICO", preguntarPdf)
 End Function

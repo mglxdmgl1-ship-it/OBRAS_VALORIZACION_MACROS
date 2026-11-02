@@ -84,8 +84,8 @@ Public Sub CerrarMes()
     mesTxt = MesTexto()
     If Not Pregunta("CERRAR EL MES DE " & mesTxt & ":" & vbCrLf & vbCrLf & _
                     "• Se guarda una copia de respaldo del programa." & vbCrLf & _
-                    "• En el 4.10, el SALDO de cada ítem pasa a SALDO ANTERIOR y se vacían los días." & vbCrLf & _
-                    "• En el 4.15, las horas del mes pasan al ACUMULADO ANTERIOR de EQUIPOS y se vacían los días." & vbCrLf & _
+                    "• En el MOV. ALMACÉN, el SALDO de cada ítem pasa a SALDO ANTERIOR y se vacían los días." & vbCrLf & _
+                    "• En el CONTROL DE EQUIPO, las horas del mes pasan al ACUMULADO ANTERIOR de EQUIPOS y se vacían los días." & vbCrLf & _
                     "• El INV. 2026 se conserva (es el inventario de todo el año)." & vbCrLf & vbCrLf & _
                     "Antes de cerrar: genere los PDF y el informe mensual. ¿Continuar?", "CERRAR MES", False) Then Exit Sub
     If Not Pregunta("¿Seguro que desea cerrar " & mesTxt & "? (queda la copia de respaldo)", "CERRAR MES", False) Then Exit Sub
@@ -113,14 +113,14 @@ Public Sub CerrarMes()
     Mensaje D_MSGPDF, ""
     Mensaje D_MSGINF, ""
     msg = "Se cerró " & mesTxt & ". Ahora el programa está en " & MesTexto() & "." & vbCrLf & vbCrLf & _
-          "Los saldos pasaron a SALDO ANTERIOR (4.10) y las horas al ACUMULADO ANTERIOR (EQUIPOS); los días quedaron vacíos."
+          "Los saldos pasaron a SALDO ANTERIOR (MOV. ALMACÉN) y las horas al ACUMULADO ANTERIOR (EQUIPOS); los días quedaron vacíos."
     If ruta <> "" Then msg = msg & vbCrLf & vbCrLf & "Copia de respaldo:" & vbCrLf & ruta
     Aviso msg, "CERRAR MES"
 End Sub
 
 Public Sub NuevaObra()
     Dim cm As Long, ruta As String, c As Variant
-    If Not Pregunta("NUEVA OBRA: se borran los datos de la obra, el INV. 2026, los cuadros 4.10 al 4.15 y los EQUIPOS " & _
+    If Not Pregunta("NUEVA OBRA: se borran los datos de la obra, el INV. 2026, los cuadros y los EQUIPOS " & _
                     "(antes se guarda una copia de respaldo)." & vbCrLf & vbCrLf & "¿Continuar?", "NUEVA OBRA", False) Then Exit Sub
     If Not Pregunta("¿Seguro? Se vaciará todo el programa para empezar otra obra.", "NUEVA OBRA", False) Then Exit Sub
     ruta = Respaldo("RESPALDO_" & Format(Now, "yyyymmdd_hhmm"))
