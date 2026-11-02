@@ -193,6 +193,7 @@ Public Function ArmarPartes(ByVal conPDF As Boolean, ByVal porEquipo As Boolean)
     Dim nReal As Long, nParte As String, oper As String, mDe As String, mA As String, tDe As String, tA As String
     Dim obs As String, fuente As String, nPdf As Long, ok As Boolean, t As String, totPag As Long
     Dim proy As String, cui As String, f3 As String, f4 As String, info As String, combDes As String
+    Dim mDeN As Double, mAN As Double, tDeN As Double, tAN As Double
     Dim lineas(1 To 3) As String, resto As String, nl As Long, trab As String, copObj As Boolean, sub2 As String
 
     ArmarPartes = 0
@@ -249,6 +250,7 @@ Public Function ArmarPartes(ByVal conPDF As Boolean, ByVal porEquipo As Boolean)
         hIni = 0
         hFin = 0
         hHor = 0
+        mDeN = -1: mAN = 0: tDeN = -1: tAN = 0
         totH = 0
         totC = 0
         nReal = 0
@@ -257,16 +259,28 @@ Public Function ArmarPartes(ByVal conPDF As Boolean, ByVal porEquipo As Boolean)
             i = pR(pOrden(x))
             If nParte = "" Then nParte = Txt(pV(i, PC_NPARTE))
             If oper = "" Then oper = Limpio(pV(i, PC_OPER))
-            If mDe = "" And mA = "" Then
+            ' horario del parte: la hora más temprana y la más tarde de las líneas del día
+            If EsNum(pV(i, PC_MDE)) Then
+                If mDeN < 0 Or Num(pV(i, PC_MDE)) < mDeN Then mDeN = Num(pV(i, PC_MDE))
+            ElseIf mDe = "" Then
                 mDe = Hora(pV(i, PC_MDE))
+            End If
+            If EsNum(pV(i, PC_MA)) Then
+                If Num(pV(i, PC_MA)) > mAN Then mAN = Num(pV(i, PC_MA))
+            ElseIf mA = "" Then
                 mA = Hora(pV(i, PC_MA))
-                hHor = hHor + Tramo(pV(i, PC_MDE), pV(i, PC_MA))
             End If
-            If tDe = "" And tA = "" Then
+            If EsNum(pV(i, PC_TDE)) Then
+                If tDeN < 0 Or Num(pV(i, PC_TDE)) < tDeN Then tDeN = Num(pV(i, PC_TDE))
+            ElseIf tDe = "" Then
                 tDe = Hora(pV(i, PC_TDE))
-                tA = Hora(pV(i, PC_TA))
-                hHor = hHor + Tramo(pV(i, PC_TDE), pV(i, PC_TA))
             End If
+            If EsNum(pV(i, PC_TA)) Then
+                If Num(pV(i, PC_TA)) > tAN Then tAN = Num(pV(i, PC_TA))
+            ElseIf tA = "" Then
+                tA = Hora(pV(i, PC_TA))
+            End If
+            hHor = hHor + Tramo(pV(i, PC_MDE), pV(i, PC_MA)) + Tramo(pV(i, PC_TDE), pV(i, PC_TA))
             If EsNum(pV(i, PC_HINI)) Then
                 If hIni = 0 Or Num(pV(i, PC_HINI)) < hIni Then hIni = Num(pV(i, PC_HINI))
             End If
@@ -287,6 +301,10 @@ Public Function ArmarPartes(ByVal conPDF As Boolean, ByVal porEquipo As Boolean)
                 End If
             End If
         Next x
+        If mDeN >= 0 Then mDe = Hora(mDeN)
+        If mAN > 0 Then mA = Hora(mAN)
+        If tDeN >= 0 Then tDe = Hora(tDeN)
+        If tAN > 0 Then tA = Hora(tAN)
         If totH > 0 And Abs(hHor - totH) <= 0.05 Then hHor = totH   ' horario redondeado al minuto
         If oper = "" Then oper = eOper(k)
         If nReal = nLin Then
@@ -364,8 +382,10 @@ Public Function ArmarPartes(ByVal conPDF As Boolean, ByVal porEquipo As Boolean)
                 wsP.Cells(rr, 7).Value = trab
                 If UBound(pV, 2) >= PC_ULT + 2 Then          ' horas DE / A (autollenado)
                     If Not IsEmpty(pV(i, PC_ULT + 1)) Then
-                        wsP.Cells(rr, 3).Value = Hora(pV(i, PC_ULT + 1))
-                        wsP.Cells(rr, 5).Value = Hora(pV(i, PC_ULT + 2))
+                        wsP.Cells(rr, 3).NumberFormat = "hh:mm"
+                        wsP.Cells(rr, 5).NumberFormat = "hh:mm"
+                        If EsNum(pV(i, PC_ULT + 1)) Then wsP.Cells(rr, 3).Value = Num(pV(i, PC_ULT + 1))
+                        If EsNum(pV(i, PC_ULT + 2)) Then wsP.Cells(rr, 5).Value = Num(pV(i, PC_ULT + 2))
                     End If
                 End If
                 AjustarTexto wsP.Cells(rr, 7), 140, 140, 10

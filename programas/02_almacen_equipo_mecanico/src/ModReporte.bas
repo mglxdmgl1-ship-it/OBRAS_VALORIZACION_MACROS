@@ -108,7 +108,12 @@ Private Sub LimpiarDatos(ByVal ws As Worksheet, ByVal desde As Long)
     Dim last As Long
     last = ws.UsedRange.Row + ws.UsedRange.Rows.Count + 5
     If last < desde + 10 Then last = desde + 10
-    ws.Rows(desde & ":" & last).Delete
+    ' se limpian (no se eliminan) para que las fórmulas que apuntan a este cuadro (INICIO, EQUIPOS) no se acorten
+    With ws.Range(ws.Rows(desde), ws.Rows(last))
+        .Clear
+        .RowHeight = ws.StandardHeight
+        .EntireRow.Hidden = False
+    End With
 End Sub
 
 Private Sub Domingos(ByVal ws As Worksheet, ByVal col1 As Long, ByVal f1 As Long, ByVal f2 As Long)
@@ -233,7 +238,7 @@ Private Sub Leer415()
     Set qCol = New Collection
     qN = 0
     last = ws.UsedRange.Row + ws.UsedRange.Rows.Count
-    n = last
+    n = last + EQMAX
     If n < 1 Then n = 1
     ReDim qCod(1 To n): ReDim qG(1 To n, 1 To 31): ReDim qH(1 To n, 1 To 31)
     For r = F0Q To last
@@ -248,6 +253,40 @@ Private Sub Leer415()
             qCol.Add qN, UCase(key)
         End If
     Next r
+    ' equipos con filas en MOV. EQUIPOS: sus horas y galones del 4.15 salen de ahí
+    Dim x As Long, i As Long, k As Long, cods As New Collection
+    LeerMovEq
+    For x = 1 To mqN
+        If Buscar(cods, UCase(mqCod(x))) = 0 Then
+            cods.Add x, UCase(mqCod(x))
+            i = Buscar(qCol, UCase(mqCod(x)))
+            If i = 0 Then
+                qN = qN + 1
+                i = qN
+                qCod(i) = mqCod(x)
+                qCol.Add i, UCase(mqCod(x))
+            End If
+            For d = 1 To 31
+                qG(i, d) = Empty
+                qH(i, d) = Empty
+            Next d
+        End If
+        i = Buscar(qCol, UCase(mqCod(x)))
+        d = Day(CDate(mqFec(x)))
+        k = Buscar(eCol, UCase(mqCod(x)))
+        If mqG(x) <> 0 Then qG(i, d) = Num(qG(i, d)) + mqG(x)
+        If mqH(x) <> 0 Then
+            If k > 0 Then
+                If EsUnidadHora(eUnd(k)) Then
+                    qH(i, d) = Num(qH(i, d)) + mqH(x) / 24     ' horas como tiempo ([h]:mm)
+                Else
+                    qH(i, d) = Num(qH(i, d)) + mqH(x)
+                End If
+            Else
+                qH(i, d) = Num(qH(i, d)) + mqH(x)
+            End If
+        End If
+    Next x
 End Sub
 
 
@@ -305,6 +344,7 @@ Public Function ActualizarCuadros(ByVal silencio As Boolean) As String
     AjustarInforme HojaPref("4.12")
     AjustarInforme HojaPref("4.15")
     SincronizarAuto                               ' equipos y rubros en AUTOLLENADO
+    ListarSalidas                                 ' una fila por salida del 4.10 en DETALLE SALIDAS
     msg = "Cuadros actualizados (" & MesTexto() & "): " & cN & " ítems en " & rN & " rubros del INV.; " & enEq & " equipos en el 4.15."
     If nDup > 0 Then msg = msg & vbCrLf & "Atención: " & nDup & " ítem(s) con número repetido en INV. (se les agregó -1, -2...)."
     If nNeg > 0 Then msg = msg & vbCrLf & vbCrLf & "SALDO NEGATIVO en " & nNeg & " ítem(s) (revise las salidas del 4.10):" & neg
@@ -547,6 +587,7 @@ Private Sub Armar415()
     Dim ws As Worksheet, wsT As Worksheet, r As Long, k As Long, i As Long, d As Long, sec As Long, n As Long, f1 As Long
     Dim unid() As String, bloques As Collection, u As Variant, v() As Variant, hayEq As Boolean, secNom As String
     Dim combCod() As String, nComb As Long, x As Long, cK As Long, fe As Long, fuelF1 As Long, fuelF2 As Long, ent As String
+    Dim usados() As Boolean, fmtH As String
     LeerEquipos
     Leer415
     Set ws = HojaPref("4.15")
@@ -625,10 +666,22 @@ Private Sub Armar415()
                             Next d
                         End If
                         ws.Range(ws.Cells(r, D1Q), ws.Cells(r + 1, D1Q + 30)).Value = v
+                        ReDim usados(1 To 31)
+                        For d = 1 To DiasMes()
+                            usados(d) = (Num(v(1, d)) <> 0 Or Num(v(2, d)) <> 0)
+                        Next d
+                        ResumenUso eCod(k), usados
                         ws.Cells(r, 41).Formula = SumaFila(ws, r, D1Q, D1Q + 30)
                         ws.Cells(r + 1, 42).Formula = SumaFila(ws, r + 1, D1Q, D1Q + 30)
+                        ' horas como tiempo [h]:mm (igual que el informe); días y viajes como números
+                        If EsUnidadHora(eUnd(k)) Then fmtH = "[h]:mm" Else fmtH = "0"
+                        ws.Range(ws.Cells(r + 1, D1Q), ws.Cells(r + 1, D1Q + 30)).NumberFormat = fmtH
+                        ws.Cells(r + 1, 42).NumberFormat = fmtH
+                        ws.Cells(r, 9).NumberFormat = fmtH
                         fe = FilaEquipo(eCod(k))
-                        If fe > 0 Then
+                        If fe > 0 And fmtH = "[h]:mm" Then
+                            ws.Cells(r, 9).Formula = "=N(EQUIPOS!" & Hoja("EQUIPOS").Cells(fe, EC_ANT).Address & ")/24+" & Dir1(ws, r + 1, 42)
+                        ElseIf fe > 0 Then
                             ws.Cells(r, 9).Formula = "=N(EQUIPOS!" & Hoja("EQUIPOS").Cells(fe, EC_ANT).Address & ")+" & Dir1(ws, r + 1, 42)
                         Else
                             ws.Cells(r, 9).Formula = "=" & Dir1(ws, r + 1, 42)
@@ -644,6 +697,7 @@ Private Sub Armar415()
                 ws.Cells(r, 31).Value = "TOTAL: COMBUSTIBLE/ " & IIf(u = "DIA", "DIAS", u)
                 ws.Cells(r, 41).Formula = "=SUM(" & Dir1(ws, f1, 41) & ":" & Dir1(ws, r - 1, 41) & ")"
                 ws.Cells(r, 42).Formula = "=SUM(" & Dir1(ws, f1, 42) & ":" & Dir1(ws, r - 1, 42) & ")"
+                If EsUnidadHora(CStr(u)) Then ws.Cells(r, 42).NumberFormat = "[h]:mm" Else ws.Cells(r, 42).NumberFormat = "0"
                 Domingos ws, D1Q, f1, r - 1
                 r = r + 2
             Next u
@@ -688,7 +742,7 @@ End Sub
 Public Sub LeerCuadrosAlmacen()
     ' llena las listas que usan el KARDEX y el BINCARD (ModKardex) a partir de INV. y 4.10
     Dim k As Long, i As Long, d As Long, m As Long, n As Long, q As Double, j As Long, p As Long
-    Dim ped As String, obs As String
+    Dim ped As String, obs As String, vale As String
     LeerInv
     Leer410
     LeerAuto
@@ -748,7 +802,9 @@ Public Sub LeerCuadrosAlmacen()
                             vDoc(anMov) = "SALIDA"
                             ped = ""
                             obs = ""
-                            AutoSalida cItem(k), rNum(cRub(k)), DiaFecha(d), ped, obs
+                            vale = ""
+                            AutoSalida cItem(k), rNum(cRub(k)), DiaFecha(d), ped, obs, vale
+                            vNDoc(anMov) = vale
                             vPed(anMov) = ped
                             vObs(anMov) = obs
                         End If
@@ -782,18 +838,22 @@ Public Sub LeerPartes415()
     For r = F0Q To last
         If Txt(ws.Cells(r, C_RAS).Value) <> "" Then n = n + 31
     Next r
-    n = n + TotalLineasAuto()
+    LeerMovEq
+    n = n + mqN
     If n < 1 Then n = 1
     ReDim pR(1 To n): ReDim pEq(1 To n): ReDim pFec(1 To n): ReDim pOrden(1 To n)
     ReDim pV(1 To n, 1 To PC_ULT + 2)            ' + 2: horas DE / A de cada línea (autollenado)
     For r = F0Q To last
         If Txt(ws.Cells(r, C_RAS).Value) <> "" Then
             k = Buscar(eCol, UCase(Txt(ws.Cells(r, C_RAS).Value)))
-            If k > 0 Then
+            If k > 0 And TieneMov(eCod(k)) Then
+                PartesDesdeMov k                  ' horario y horómetro reales (MOV. EQUIPOS)
+            ElseIf k > 0 Then
                 horo = HorometroInicial(k)
                 For d = 1 To DiasMes()
                     g = Num(ws.Cells(r, D1Q + d - 1).Value)
                     h = Num(ws.Cells(r + 1, D1Q + d - 1).Value)
+                    If EsUnidadHora(eUnd(k)) Then h = Redondear(h * 24, 2)     ' [h]:mm -> horas
                     If (g <> 0 Or h <> 0) And auPartes Then
                         AutoParte k, DiaFecha(d), g, h, horo
                     ElseIf g <> 0 Or h <> 0 Then
@@ -815,6 +875,77 @@ Public Sub LeerPartes415()
             End If
         End If
     Next r
+    OrdenarPartes
+End Sub
+
+
+'========================================================================== DETALLE SALIDAS
+Public Sub ListarSalidas()
+    ' una fila por salida (día e ítem) del 4.10, conservando el N° de vale, PEDIDO POR y destino ya escritos
+    Dim wd As Worksheet, v As Variant, i As Long, n As Long, k As Long, d As Long, r As Long, t As Long, key As String
+    Dim col As New Collection, kF() As Double, kI() As String, kVa() As Variant, kPe() As Variant, kDe() As Variant
+    Dim usado() As Boolean, q As Double
+    Set wd = HojaAuto(DS_HOJA)
+    If wd Is Nothing Then Exit Sub
+    v = wd.Range(wd.Cells(DS0, 1), wd.Cells(DS1, 9)).Value
+    n = UBound(v, 1)
+    ReDim kF(1 To n): ReDim kI(1 To n): ReDim kVa(1 To n): ReDim kPe(1 To n): ReDim kDe(1 To n): ReDim usado(1 To n)
+    t = 0
+    For i = 1 To n
+        If Fecha(v(i, 2)) > 0 And Txt(v(i, 3)) <> "" Then
+            key = Format(CDate(Fecha(v(i, 2))), "yyyymmdd") & "|" & UCase(Txt(v(i, 3)))
+            If Buscar(col, key) = 0 Then
+                t = t + 1
+                col.Add t, key
+                kF(t) = Fecha(v(i, 2))
+                kI(t) = Txt(v(i, 3))
+                kVa(t) = v(i, 7)
+                kPe(t) = v(i, 8)
+                kDe(t) = v(i, 9)
+            End If
+        End If
+    Next i
+    LeerInv
+    Leer410
+    wd.Range(wd.Cells(DS0, 2), wd.Cells(DS1, 3)).ClearContents
+    wd.Range(wd.Cells(DS0, 6), wd.Cells(DS1, 9)).ClearContents
+    r = DS0
+    For d = 1 To DiasMes()
+        For k = 1 To cN
+            i = Buscar(tCol, UCase(cItem(k)))
+            If i > 0 Then
+                q = Num(tS(i, d))
+                If q <> 0 And r <= DS1 Then
+                    wd.Cells(r, 2).Value = CDate(DiaFecha(d))
+                    wd.Cells(r, 3).NumberFormat = "@"
+                    wd.Cells(r, 3).Value = cItem(k)
+                    wd.Cells(r, 6).Value = q
+                    i = Buscar(col, Format(CDate(DiaFecha(d)), "yyyymmdd") & "|" & UCase(cItem(k)))
+                    If i > 0 Then
+                        usado(i) = True
+                        wd.Cells(r, 7).Value = kVa(i)
+                        wd.Cells(r, 8).Value = kPe(i)
+                        wd.Cells(r, 9).Value = kDe(i)
+                    End If
+                    r = r + 1
+                End If
+            End If
+        Next k
+    Next d
+    ' lo escrito para salidas que ya no están en el 4.10 queda al final (la REVISIÓN lo avisa)
+    For i = 1 To t
+        If Not usado(i) And r <= DS1 Then
+            If Txt(kVa(i)) <> "" Or Txt(kPe(i)) <> "" Or Txt(kDe(i)) <> "" Then
+                wd.Cells(r, 2).Value = CDate(kF(i))
+                wd.Cells(r, 3).NumberFormat = "@"
+                wd.Cells(r, 3).Value = kI(i)
+                wd.Cells(r, 7).Value = kVa(i)
+                wd.Cells(r, 8).Value = kPe(i)
+                wd.Cells(r, 9).Value = kDe(i)
+                r = r + 1
+            End If
+        End If
+    Next i
 End Sub
 
 
@@ -840,8 +971,9 @@ Public Sub CerrarCuadros()
         If Txt(ws.Cells(r, C_RAS).Value) <> "" Then
             fe = FilaEquipo(Txt(ws.Cells(r, C_RAS).Value))
             If fe > 0 Then
-                we.Cells(fe, EC_ANT).Value = Redondear(Num(we.Cells(fe, EC_ANT).Value) + _
-                    Application.WorksheetFunction.Sum(ws.Range(ws.Cells(r + 1, D1Q), ws.Cells(r + 1, D1Q + 30))), 4)
+                s = Application.WorksheetFunction.Sum(ws.Range(ws.Cells(r + 1, D1Q), ws.Cells(r + 1, D1Q + 30)))
+                If EsUnidadHora(Txt(we.Cells(fe, EC_UND).Value)) Then s = s * 24
+                we.Cells(fe, EC_ANT).Value = Redondear(Num(we.Cells(fe, EC_ANT).Value) + s, 4)
             End If
             ws.Range(ws.Cells(r, D1Q), ws.Cells(r + 1, D1Q + 30)).ClearContents
         End If
@@ -964,10 +1096,10 @@ Public Sub TraerDatosAnteriores()
             End If
         End If
     Next r
-    TraerSalidasAnteriores itNum                  ' destino y PEDIDO POR -> DETALLE DIARIO
+    TraerSalidasAnteriores itNum                  ' N° de documento, PEDIDO POR y destino -> DETALLE SALIDAS
     ' equipos: horas y combustible de la hoja PARTES
     LeerPartesHoja
-    TraerTrabajosAnteriores                       ' trabajos de cada día -> DETALLE DIARIO
+    TraerMovAnterior                              ' partes -> MOV. EQUIPOS (cuadro de movimiento diario)
     Set w15 = HojaPref("4.15")
     last = w15.UsedRange.Row + w15.UsedRange.Rows.Count
     For r = F0Q To last
@@ -984,18 +1116,24 @@ Public Sub TraerDatosAnteriores()
                 Next x
                 For d = 1 To 31
                     If Num(v(1, d)) = 0 Then v(1, d) = Empty
-                    If Num(v(2, d)) = 0 Then v(2, d) = Empty
+                    If Num(v(2, d)) = 0 Then
+                        v(2, d) = Empty
+                    ElseIf EsUnidadHora(eUnd(k)) Then
+                        v(2, d) = Num(v(2, d)) / 24
+                    End If
                 Next d
                 w15.Range(w15.Cells(r, D1Q), w15.Cells(r + 1, D1Q + 30)).Value = v
                 nEq = nEq + 1
             End If
         End If
     Next r
-    SincronizarAuto
+    Fin cm
+    ActualizarCuadros True
+    Inicio cm, "Terminando..."
     Fin cm
     Aviso "Listo: " & nItems & " ítems pasaron al INV. 2026 (con su saldo anterior y las entradas y salidas de cada día en el " & _
-          "4.10) y " & nEq & " equipo(s) al 4.15. Los destinos de las salidas y los trabajos de los equipos pasaron a la hoja " & _
-          "DETALLE DIARIO (para el autollenado)." & vbCrLf & vbCrLf & "Desde ahora registre directamente en el INV., el 4.10 " & _
+          "4.10) y " & nEq & " equipo(s) al 4.15. Los destinos de las salidas pasaron a DETALLE SALIDAS " & _
+          "y los partes a MOV. EQUIPOS: complete ahí lo que falte (horario, horómetro, operador) y pulse ACTUALIZAR Y REVISAR." & vbCrLf & vbCrLf & "Desde ahora registre directamente en el INV., el 4.10 " & _
           "y el 4.15.", "TRAER DATOS ANTERIORES"
     HojaPref("4.10").Activate
     Exit Sub

@@ -8,10 +8,18 @@ Option Explicit
 Public Sub GenerarTodo()
     ' GENERAR LOS TRES: actualiza los cuadros y arma kardex, bincard y partes en sus hojas (sin PDF)
     Dim n As Long, s As String
+    s = ActualizarCuadros(True)
+    n = RevisarDatos()
+    If n > 0 Then
+        If Not Pregunta("La REVISIÓN encontró " & n & " dato(s) por completar o corregir (hoja REVISION)." & vbCrLf & vbCrLf & _
+                        "Lo recomendable es completarlos primero. ¿Generar los formatos de todos modos?", "GENERAR LOS TRES", True) Then
+            HojaAuto(RV_HOJA).Activate
+            Exit Sub
+        End If
+    End If
     gAcum = True
     gTexto = ""
     On Error GoTo Sale
-    s = ActualizarCuadros(True)
     gTexto = "ACTUALIZAR CUADROS" & vbCrLf & s & vbCrLf & vbCrLf
     n = ArmarTarjetas(True, False, False)
     n = ArmarTarjetas(False, False, False)
@@ -118,7 +126,7 @@ Public Sub NuevaObra()
     ruta = Respaldo("RESPALDO_" & Format(Now, "yyyymmdd_hhmm"))
     Inicio cm, "Vaciando el programa..."
     For Each c In Array(D_ENTIDAD, D_GEREN, D_SUBG, D_PROY, D_CUI, D_META, D_UBIC, D_NINF, D_CARPETA, D_CTRL, D_INF410, _
-                        D_INF415, D_MSG, D_MSGPDF, D_MSGINF, D_RESID, D_SUPER)
+                        D_INF415, D_MSG, D_MSGPDF, D_MSGINF, D_RESID, D_SUPER, D_MAESTRO)
         Hoja("DATOS").Range(c).ClearContents
     Next c
     VaciarColumnas Hoja("CATALOGO"), CT0, CTMAX, Array(CC_COD, CC_ACU), Array(CC_SANT, CC_ULT)
