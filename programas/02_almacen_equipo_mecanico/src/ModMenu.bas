@@ -1,0 +1,164 @@
+Attribute VB_Name = "ModMenu"
+Option Explicit
+
+'==========================================================================================
+'  MENÚ: generar todo, abrir la carpeta de salidas, cerrar el mes y nueva obra
+'==========================================================================================
+
+Public Sub GenerarTodo()
+    Dim porUno As Boolean, n As Long, s As String
+    porUno = Pregunta("Se procesa el mes y se arman y exportan a PDF los KARDEX, las tarjetas BINCARD y los PARTES DIARIOS." & _
+                      vbCrLf & vbCrLf & "¿Desea además un PDF por cada insumo y por cada equipo?", "GENERAR TODO", False)
+    gAcum = True
+    gTexto = ""
+    On Error GoTo Sale
+    s = Procesar()
+    gTexto = "PROCESAR Y VALIDAR" & vbCrLf & s & vbCrLf & vbCrLf
+    n = ArmarTarjetas(True, True, porUno)
+    n = ArmarTarjetas(False, True, porUno)
+    n = ArmarPartes(True, porUno)
+Sale:
+    gAcum = False
+    If Err.Number <> 0 Then gTexto = gTexto & "Error: " & Err.Description
+    Aviso gTexto, "GENERAR TODO"
+    gTexto = ""
+End Sub
+
+Public Sub AbrirCarpeta()
+    Dim p As String
+    p = CarpetaSalida("")
+    If p = "" Then Exit Sub
+    On Error Resume Next
+    Shell "explorer.exe """ & p & """", 1
+End Sub
+
+Public Function Respaldo(ByVal sufijo As String) As String
+    Dim raiz As String, nom As String, k As Long, ruta As String
+    Respaldo = ""
+    raiz = RutaLocal(ThisWorkbook.Path)
+    nom = ThisWorkbook.Name
+    k = InStrRev(nom, ".")
+    If k > 0 Then nom = Left(nom, k - 1)
+    ruta = raiz & sep() & nom & "_" & sufijo & ".xlsm"
+    On Error GoTo Falla
+    ThisWorkbook.SaveCopyAs ruta
+    Respaldo = ruta
+    Exit Function
+Falla:
+    Respaldo = ""
+End Function
+
+Private Sub VaciarColumnas(ByVal ws As Worksheet, ByVal f0 As Long, ByVal f1 As Long, ByVal desde As Variant, ByVal hasta As Variant)
+    Dim i As Long
+    For i = LBound(desde) To UBound(desde)
+        ws.Range(ws.Cells(f0, desde(i)), ws.Cells(f1, hasta(i))).ClearContents
+    Next i
+End Sub
+
+Private Sub VaciarSalidas()
+    Dim n As Variant
+    For Each n In Array("KARDEX", "BINCARD", "PARTE_DIARIO")
+        On Error Resume Next
+        Hoja(n).ResetAllPageBreaks
+        BorrarFormas Hoja(n)
+        Hoja(n).Cells.Clear
+        On Error GoTo 0
+    Next n
+End Sub
+
+Public Sub CerrarMes()
+    Dim cm As Long, ws As Worksheet, last As Long, v As Variant, w As Variant, i As Long, ruta As String, msg As String
+    Dim t As Double, s As String, mesTxt As String
+    mesTxt = MesTexto()
+    If Not Pregunta("CERRAR EL MES DE " & mesTxt & ":" & vbCrLf & vbCrLf & _
+                    "• Se guarda una copia de respaldo del programa." & vbCrLf & _
+                    "• El SALDO ACTUAL de cada insumo pasa a SALDO ANTERIOR y el ACUMULADO de cada equipo a " & _
+                    "ACUMULADO ANTERIOR." & vbCrLf & _
+                    "• Se vacían MOVIMIENTOS y PARTES para registrar el mes siguiente." & vbCrLf & vbCrLf & _
+                    "Antes de cerrar: genere los PDF y envíe los datos al informe. ¿Continuar?", "CERRAR MES", False) Then Exit Sub
+    If Not Pregunta("¿Seguro que desea cerrar " & mesTxt & "? (queda la copia de respaldo)", "CERRAR MES", False) Then Exit Sub
+    ruta = Respaldo("CIERRE_" & MesArchivo())
+    If ruta = "" Then
+        If Not Pregunta("No se pudo guardar la copia de respaldo junto al programa. ¿Cerrar el mes de todos modos?", _
+                        "CERRAR MES", False) Then Exit Sub
+    End If
+    Inicio cm, "Cerrando el mes..."
+    Application.Calculate
+    Set ws = Hoja("CATALOGO")
+    last = UltimaFila(ws, CC_COD, CT0, CTMAX)
+    If last >= CT0 Then
+        v = ws.Range(ws.Cells(CT0, CC_COD), ws.Cells(last, CC_COD)).Value
+        w = ws.Range(ws.Cells(CT0, CC_SALDO), ws.Cells(last, CC_SALDO)).Value
+        For i = 1 To UBound(w, 1)
+            If txt(v(i, 1)) <> "" Then
+                w(i, 1) = Redondear(Num(w(i, 1)), 4)
+            Else
+                w(i, 1) = Empty
+            End If
+        Next i
+        ws.Range(ws.Cells(CT0, CC_SANT), ws.Cells(CTMAX, CC_SANT)).ClearContents
+        ws.Range(ws.Cells(CT0, CC_SANT), ws.Cells(last, CC_SANT)).Value = w
+    End If
+    Set ws = Hoja("EQUIPOS")
+    last = UltimaFila(ws, EC_COD, EQ0, EQMAX)
+    If last >= EQ0 Then
+        v = ws.Range(ws.Cells(EQ0, EC_COD), ws.Cells(last, EC_COD)).Value
+        w = ws.Range(ws.Cells(EQ0, 19), ws.Cells(last, 19)).Value
+        For i = 1 To UBound(w, 1)
+            If txt(v(i, 1)) <> "" Then
+                w(i, 1) = Redondear(Num(w(i, 1)), 4)
+            Else
+                w(i, 1) = Empty
+            End If
+        Next i
+        ws.Range(ws.Cells(EQ0, EC_ANT), ws.Cells(EQMAX, EC_ANT)).ClearContents
+        ws.Range(ws.Cells(EQ0, EC_ANT), ws.Cells(last, EC_ANT)).Value = w
+    End If
+    VaciarColumnas Hoja("MOVIMIENTOS"), MV0, MVMAX, Array(MC_FEC, MC_CANT, MC_SALDO), Array(MC_COD, MC_ORIG, MC_SALDO)
+    VaciarColumnas Hoja("PARTES"), PT0, PTMAX, Array(PC_FEC, PC_NPARTE, PC_HREAL, PC_COMB, PC_CTRL), _
+                   Array(PC_EQ, PC_REND, PC_HREAL, PC_ORIG, PC_CTRL)
+    VaciarSalidas
+    t = MesInicio()
+    Hoja("DATOS").Range(D_MES).Value = DateSerial(Year(CDate(t)), Month(CDate(t)) + 1, 1)
+    Hoja("DATOS").Range(D_CORTE).Value = DateSerial(Year(CDate(t)), Month(CDate(t)) + 2, 0)
+    s = txt(Hoja("DATOS").Range(D_NINF).Value)
+    If EsDigitos(s) Then
+        Hoja("DATOS").Range(D_NINF).NumberFormat = "@"
+        Hoja("DATOS").Range(D_NINF).Value = Format(Val(s) + 1, String(Len(s), "0"))
+    End If
+    Mensaje D_MSG, "Mes de " & mesTxt & " cerrado el " & Format(Now, "dd/mm/yyyy hh:mm") & "."
+    Mensaje D_MSGPDF, ""
+    Mensaje D_MSGINF, ""
+    Fin cm
+    msg = "Se cerró " & mesTxt & ". Ahora el programa está en " & MesTexto() & "." & vbCrLf & vbCrLf & _
+          "Los saldos pasaron a SALDO ANTERIOR y los registros quedaron vacíos."
+    If ruta <> "" Then msg = msg & vbCrLf & vbCrLf & "Copia de respaldo:" & vbCrLf & ruta
+    Aviso msg, "CERRAR MES"
+End Sub
+
+Public Sub NuevaObra()
+    Dim cm As Long, ruta As String, c As Variant
+    If Not Pregunta("NUEVA OBRA: se borran los datos de la obra, el CATÁLOGO, los MOVIMIENTOS, los EQUIPOS y los PARTES " & _
+                    "(antes se guarda una copia de respaldo)." & vbCrLf & vbCrLf & "¿Continuar?", "NUEVA OBRA", False) Then Exit Sub
+    If Not Pregunta("¿Seguro? Se vaciará todo el programa para empezar otra obra.", "NUEVA OBRA", False) Then Exit Sub
+    ruta = Respaldo("RESPALDO_" & Format(Now, "yyyymmdd_hhmm"))
+    Inicio cm, "Vaciando el programa..."
+    For Each c In Array(D_ENTIDAD, D_GEREN, D_SUBG, D_PROY, D_CUI, D_META, D_UBIC, D_NINF, D_CARPETA, D_CTRL, D_INF410, _
+                        D_INF415, D_MSG, D_MSGPDF, D_MSGINF)
+        Hoja("DATOS").Range(c).ClearContents
+    Next c
+    VaciarColumnas Hoja("CATALOGO"), CT0, CTMAX, Array(CC_COD, CC_ACU), Array(CC_SANT, CC_ULT)
+    VaciarColumnas Hoja("MOVIMIENTOS"), MV0, MVMAX, Array(MC_FEC, MC_CANT, MC_SALDO), Array(MC_COD, MC_ORIG, MC_SALDO)
+    VaciarColumnas Hoja("EQUIPOS"), EQ0, EQMAX, Array(EC_COD, EC_COND, EC_ACU), Array(EC_CU, EC_ANT, EC_ULT)
+    VaciarColumnas Hoja("PARTES"), PT0, PTMAX, Array(PC_FEC, PC_NPARTE, PC_HREAL, PC_COMB, PC_CTRL), _
+                   Array(PC_EQ, PC_REND, PC_HREAL, PC_ORIG, PC_CTRL)
+    VaciarSalidas
+    Fin cm
+    Hoja("DATOS").Activate
+    If ruta = "" Then
+        Aviso "El programa quedó vacío. Registre los datos de la nueva obra en esta hoja.", "NUEVA OBRA"
+    Else
+        Aviso "El programa quedó vacío. Registre los datos de la nueva obra en esta hoja." & vbCrLf & vbCrLf & _
+              "Copia de respaldo:" & vbCrLf & ruta, "NUEVA OBRA"
+    End If
+End Sub
