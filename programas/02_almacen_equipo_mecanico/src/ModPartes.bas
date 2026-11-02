@@ -44,7 +44,7 @@ Public Sub LeerEquipos()
     If last < EQ0 Then Exit Sub
     v = ws.Range(ws.Cells(EQ0, 1), ws.Cells(last, EC_ULT)).Value
     For i = 1 To UBound(v, 1)
-        cod = txt(v(i, EC_COD))
+        cod = Txt(v(i, EC_COD))
         If cod <> "" Then
             If Buscar(eCol, UCase(cod)) = 0 Then
                 enEq = enEq + 1
@@ -56,10 +56,10 @@ Public Sub LeerEquipos()
                 eAnio(enEq) = Limpio(v(i, EC_ANIO))
                 eProv(enEq) = Limpio(v(i, EC_PROV))
                 eOS(enEq) = Limpio(v(i, EC_OS))
-                eUnd(enEq) = txt(v(i, EC_UND))
+                eUnd(enEq) = Txt(v(i, EC_UND))
                 eCond(enEq) = Limpio(v(i, EC_COND))
                 eOper(enEq) = Limpio(v(i, EC_OPER))
-                eComb(enEq) = txt(v(i, EC_COMB))
+                eComb(enEq) = Txt(v(i, EC_COMB))
                 eCol.Add enEq, UCase(cod)
             End If
         End If
@@ -88,9 +88,9 @@ Public Sub LeerPartesHoja()
     End If
     pV = ws.Range(ws.Cells(PT0, 1), ws.Cells(last, PC_ULT)).Value
     For i = 1 To UBound(pV, 1)
-        If txt(pV(i, PC_FEC)) <> "" Or txt(pV(i, PC_EQ)) <> "" Then
+        If Txt(pV(i, PC_FEC)) <> "" Or Txt(pV(i, PC_EQ)) <> "" Then
             t = Fecha(pV(i, PC_FEC))
-            k = Buscar(eCol, UCase(txt(pV(i, PC_EQ))))
+            k = Buscar(eCol, UCase(Txt(pV(i, PC_EQ))))
             If t > 0 And k > 0 Then
                 pnPar = pnPar + 1
                 pR(pnPar) = i
@@ -142,10 +142,10 @@ End Function
 
 
 Public Sub GenerarPartes()
+    ' arma los partes en la hoja PARTE_DIARIO (sin PDF: se revisan y se exportan con PDF PARTES DIARIOS)
     Dim n As Long, s As String
     s = ActualizarCuadros(True)
-    n = ArmarPartes(True, Pregunta("Se arma un PDF con todos los partes diarios del mes." & vbCrLf & vbCrLf & _
-                    "¿Desea además un PDF por cada equipo (carpeta PARTES_DIARIOS\POR_EQUIPO)?", "PARTES DIARIOS", False))
+    n = ArmarPartes(False, False)
 End Sub
 
 
@@ -157,7 +157,7 @@ Private Function DescCatalogo(ByVal cod As String) As String
     Set ws = Hoja("CATALOGO")
     On Error Resume Next
     r = Application.Match(cod, ws.Range(ws.Cells(CT0, CC_COD), ws.Cells(CTMAX, CC_COD)), 0)
-    If Not IsError(r) Then DescCatalogo = UCase(txt(ws.Cells(CT0 + CLng(r) - 1, CC_DES).Value))
+    If Not IsError(r) Then DescCatalogo = UCase(Txt(ws.Cells(CT0 + CLng(r) - 1, CC_DES).Value))
     On Error GoTo 0
 End Function
 
@@ -184,7 +184,7 @@ Private Function Partir(ByVal s As String, ByVal lim As Long, ByRef resto As Str
 End Function
 
 
-Public Function ArmarPartes(ByVal conPdf As Boolean, ByVal porEquipo As Boolean) As Long
+Public Function ArmarPartes(ByVal conPDF As Boolean, ByVal porEquipo As Boolean) As Long
     ' un parte diario por equipo y día, con el formato PARTE DIARIO DE MAQUINARIA del informe (hoja FMT_PARTE)
     Dim cm As Long, wsF As Worksheet, wsP As Worksheet, j As Long, g0 As Long, g1 As Long, k As Long, x As Long
     Dim r0 As Long, i As Long, c As Long, nG As Long, nLin As Long, nPag As Long, p As Long, li As Long, rr As Long
@@ -205,9 +205,9 @@ Public Function ArmarPartes(ByVal conPdf As Boolean, ByVal porEquipo As Boolean)
         Exit Function
     End If
     proy = Limpio(Hoja("DATOS").Range(D_PROY).Value)
-    cui = txt(Hoja("DATOS").Range(D_CUI).Value)
-    f3 = txt(Hoja("DATOS").Range(D_F3).Value)
-    f4 = txt(Hoja("DATOS").Range(D_F4).Value)
+    cui = Txt(Hoja("DATOS").Range(D_CUI).Value)
+    f3 = Txt(Hoja("DATOS").Range(D_F3).Value)
+    f4 = Txt(Hoja("DATOS").Range(D_F4).Value)
     Set wsF = Hoja("FMT_PARTE")
     Set wsP = Hoja("PARTE_DIARIO")
     copObj = True
@@ -216,7 +216,7 @@ Public Function ArmarPartes(ByVal conPdf As Boolean, ByVal porEquipo As Boolean)
     Application.CopyObjectsWithCells = True
     wsP.ResetAllPageBreaks
     BorrarFormas wsP
-    wsP.Cells.Delete
+    BorrarFilas wsP
     On Error GoTo 0
     wsP.Cells.Clear
     For c = 1 To PD_COLS
@@ -255,7 +255,7 @@ Public Function ArmarPartes(ByVal conPdf As Boolean, ByVal porEquipo As Boolean)
         obs = ""
         For x = g0 To g1
             i = pR(pOrden(x))
-            If nParte = "" Then nParte = txt(pV(i, PC_NPARTE))
+            If nParte = "" Then nParte = Txt(pV(i, PC_NPARTE))
             If oper = "" Then oper = Limpio(pV(i, PC_OPER))
             If mDe = "" And mA = "" Then
                 mDe = Hora(pV(i, PC_MDE))
@@ -354,10 +354,10 @@ Public Function ArmarPartes(ByVal conPdf As Boolean, ByVal porEquipo As Boolean)
                 i = pR(pOrden(x))
                 rr = r0 + PD_L0 + li - 2
                 trab = Limpio(pV(i, PC_TRAB))
-                If txt(pV(i, PC_PART)) <> "" Then trab = txt(pV(i, PC_PART)) & " – " & trab
+                If Txt(pV(i, PC_PART)) <> "" Then trab = Txt(pV(i, PC_PART)) & " – " & trab
                 If EsNum(pV(i, PC_MET)) Then
-                    t = Format(Num(pV(i, PC_MET)), "#,##0.00") & " " & txt(pV(i, PC_UND))
-                    If EsNum(pV(i, PC_REND)) Then t = t & " x " & Format(Num(pV(i, PC_REND)), "0.0000") & " h/" & txt(pV(i, PC_UND))
+                    t = Format(Num(pV(i, PC_MET)), "#,##0.00") & " " & Txt(pV(i, PC_UND))
+                    If EsNum(pV(i, PC_REND)) Then t = t & " x " & Format(Num(pV(i, PC_REND)), "0.0000") & " h/" & Txt(pV(i, PC_UND))
                     trab = trab & "  (" & Trim(t) & ")"
                 End If
                 wsP.Cells(rr, 7).Value = trab
@@ -413,56 +413,26 @@ Public Function ArmarPartes(ByVal conPdf As Boolean, ByVal porEquipo As Boolean)
     Application.CopyObjectsWithCells = copObj
     On Error GoTo 0
 
+    For k = 1 To enEq
+        If desde(k) > 0 Then MarcarBloque wsP, desde(k), eCod(k) & " " & eDes(k), hasta(k)
+    Next k
+    OcultarMarcas wsP
     area = "$B$1:$P$" & (r0 - 1)
     On Error Resume Next
     wsP.PageSetup.PrintArea = area
     On Error GoTo 0
     Fin cm
+    PaginaFormato wsP, "PARTES"                   ' cada parte entra completo en la hoja, con márgenes
     ArmarPartes = nG
 
     msg = "Se armaron " & nG & " partes diarios (" & totPag & " hojas) del mes de " & MesTexto() & "."
     If pnMal > 0 Then msg = msg & vbCrLf & "Atención: " & pnMal & " equipo(s) del 4.15 ya no están en EQUIPOS (pulse ACTUALIZAR CUADROS)."
-    If conPdf And nG > 0 Then
-        Estado "Exportando los partes diarios a PDF..."
-        archivo = GuardarComo(RutaSugerida("PARTES_DIARIOS", "PARTES_DIARIOS_" & MesArchivo() & "_TODOS.pdf"), _
-                              "Guardar el PDF de los PARTES DIARIOS como", "PDF")
-        If archivo = "" Then
-            msg = msg & vbCrLf & vbCrLf & "No se generó el PDF (se canceló «Guardar como»). Los partes están en la hoja PARTE_DIARIO."
-        Else
-            carpeta = CarpetaDe(archivo)
-            ok = ExportarPDF(wsP, archivo)
-            If ok Then
-                nPdf = 1
-                If porEquipo Then
-                    sub2 = SubcarpetaPor(carpeta, "PARTES_DIARIOS", "POR_EQUIPO")
-                    If CrearCarpeta(sub2) Then
-                        For k = 1 To enEq
-                            If desde(k) > 0 Then
-                                On Error Resume Next
-                                wsP.PageSetup.PrintArea = "$B$" & desde(k) & ":$P$" & hasta(k)
-                                On Error GoTo 0
-                                If ExportarPDF(wsP, sub2 & sep() & "PARTES_" & _
-                                               NombreSeguro(eCod(k) & " " & eDes(k), 70) & ".pdf") Then nPdf = nPdf + 1
-                            End If
-                        Next k
-                        On Error Resume Next
-                        wsP.PageSetup.PrintArea = area
-                        On Error GoTo 0
-                    End If
-                End If
-                msg = msg & vbCrLf & vbCrLf & "PDF generados: " & nPdf & vbCrLf & archivo
-                Mensaje D_MSGPDF, "PARTES DIARIOS: " & nG & " partes, " & nPdf & " PDF (" & Format(Now, "dd/mm/yyyy hh:mm") & _
-                        ") en " & carpeta
-            Else
-                msg = msg & vbCrLf & vbCrLf & "No se pudo crear el PDF en:" & vbCrLf & archivo & vbCrLf & _
-                      "(¿el archivo está abierto en otro programa?)"
-            End If
-        End If
-        Estado ""
-    End If
+    If nG > 0 And Not gAcum Then msg = msg & vbCrLf & vbCrLf & "Revise (y corrija si hace falta) la hoja PARTE_DIARIO; luego use el botón " & _
+                       "PDF PARTES DIARIOS (A5, o A4 con dos por cara)."
     If Not gSilencio Then
         wsP.Activate
         wsP.Range("A1").Select
     End If
     Aviso msg, "PARTES DIARIOS"
+    If conPDF And nG > 0 Then msg = ExportarFormato("PARTES")
 End Function

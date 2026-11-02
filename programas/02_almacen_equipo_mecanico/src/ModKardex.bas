@@ -56,14 +56,14 @@ Public Sub LeerAlmacenCatalogo()
     If last >= CT0 Then
         v = ws.Range(ws.Cells(CT0, 1), ws.Cells(last, CC_ULT)).Value
         For i = 1 To UBound(v, 1)
-            cod = txt(v(i, CC_COD))
+            cod = Txt(v(i, CC_COD))
             If cod <> "" Then
                 If Buscar(aCol, UCase(cod)) = 0 Then
                     anCat = anCat + 1
                     aCod(anCat) = cod
                     aDes(anCat) = Limpio(v(i, CC_DES))
-                    aUnd(anCat) = txt(v(i, CC_UND))
-                    aGru(anCat) = txt(v(i, CC_GRU))
+                    aUnd(anCat) = Txt(v(i, CC_UND))
+                    aGru(anCat) = Txt(v(i, CC_GRU))
                     aPU(anCat) = Num(v(i, CC_PU))
                     aAnt(anCat) = Num(v(i, CC_SANT))
                     aCol.Add anCat, UCase(cod)
@@ -94,10 +94,10 @@ Public Sub LeerAlmacenCatalogo()
     If last >= MV0 Then
         v = ws.Range(ws.Cells(MV0, 1), ws.Cells(last, MC_ULT)).Value
         For i = 1 To UBound(v, 1)
-            If txt(v(i, MC_COD)) <> "" Or txt(v(i, MC_CANT)) <> "" Or txt(v(i, MC_FEC)) <> "" Then
+            If Txt(v(i, MC_COD)) <> "" Or Txt(v(i, MC_CANT)) <> "" Or Txt(v(i, MC_FEC)) <> "" Then
                 t = Fecha(v(i, MC_FEC))
-                tp = UCase(txt(v(i, MC_TIPO)))
-                k = Buscar(aCol, UCase(txt(v(i, MC_COD))))
+                tp = UCase(Txt(v(i, MC_TIPO)))
+                k = Buscar(aCol, UCase(Txt(v(i, MC_COD))))
                 q = Num(v(i, MC_CANT))
                 If t > 0 And k > 0 And q <> 0 And (tp = T_ING Or tp = T_SAL) Then
                     anMov = anMov + 1
@@ -107,7 +107,7 @@ Public Sub LeerAlmacenCatalogo()
                     vNDoc(anMov) = Limpio(v(i, MC_NDOC))
                     vOC(anMov) = Limpio(v(i, MC_OC))
                     vProc(anMov) = Limpio(v(i, MC_PROC))
-                    vPart(anMov) = txt(v(i, MC_PART))
+                    vPart(anMov) = Txt(v(i, MC_PART))
                     vPed(anMov) = Limpio(v(i, MC_PED))
                     vObs(anMov) = Limpio(v(i, MC_OBS))
                     vCant(anMov) = q
@@ -148,17 +148,16 @@ End Sub
 
 
 Public Sub GenerarKardex()
+    ' arma los kardex en la hoja KARDEX (sin PDF: se revisan y se exportan con PDF KARDEX)
     Dim n As Long, s As String
     s = ActualizarCuadros(True)
-    n = ArmarTarjetas(True, True, Pregunta("Se arma un PDF con todos los kardex del mes." & vbCrLf & vbCrLf & _
-                      "¿Desea además un PDF por cada insumo (carpeta KARDEX\POR_INSUMO)?", "KARDEX", False))
+    n = ArmarTarjetas(True, False, False)
 End Sub
 
 Public Sub GenerarBincard()
     Dim n As Long, s As String
     s = ActualizarCuadros(True)
-    n = ArmarTarjetas(False, True, Pregunta("Se arma un PDF con todas las tarjetas BINCARD del mes." & vbCrLf & vbCrLf & _
-                      "¿Desea además un PDF por cada insumo (carpeta BINCARD\POR_INSUMO)?", "BINCARD", False))
+    n = ArmarTarjetas(False, False, False)
 End Sub
 
 
@@ -172,7 +171,7 @@ Private Function Juntar(ByVal a As String, ByVal b As String, ByVal sep As Strin
     End If
 End Function
 
-Private Sub PonerColumna(ByVal ws As Worksheet, ByVal F0 As Long, ByVal col As Long, ByRef lin() As Variant, _
+Private Sub PonerColumna(ByVal ws As Worksheet, ByVal f0 As Long, ByVal col As Long, ByRef lin() As Variant, _
                          ByVal desde As Long, ByVal n As Long, ByVal idx As Long)
     ' escribe una columna de la tabla (una sola columna: así no hay problemas con las celdas combinadas)
     Dim b() As Variant, i As Long
@@ -180,11 +179,11 @@ Private Sub PonerColumna(ByVal ws As Worksheet, ByVal F0 As Long, ByVal col As L
     For i = 1 To n
         b(i, 1) = lin(desde + i - 1, idx)
     Next i
-    ws.Range(ws.Cells(F0, col), ws.Cells(F0 + n - 1, col)).Value = b
+    ws.Range(ws.Cells(f0, col), ws.Cells(f0 + n - 1, col)).Value = b
 End Sub
 
 
-Public Function ArmarTarjetas(ByVal esKardex As Boolean, ByVal conPdf As Boolean, ByVal porInsumo As Boolean) As Long
+Public Function ArmarTarjetas(ByVal esKardex As Boolean, ByVal conPDF As Boolean, ByVal porInsumo As Boolean) As Long
     ' arma una tarjeta (una o más hojas) por insumo con movimiento o saldo; devuelve el número de tarjetas
     Dim cm As Long, wsF As Worksheet, wsK As Worksheet, alto As Long, l0 As Long, nl As Long, ncol As Long, ucol As Long
     Dim k As Long, i As Long, p As Long, nPag As Long, nLin As Long, r0 As Long, totPag As Long, nTar As Long
@@ -227,14 +226,14 @@ Public Function ArmarTarjetas(ByVal esKardex As Boolean, ByVal conPdf As Boolean
         ucol = BC_COLS
     End If
     ncol = UBound(cols) - LBound(cols) + 1
-    ent = txt(Hoja("DATOS").Range(D_ENTIDAD).Value)
-    ger = txt(Hoja("DATOS").Range(D_GEREN).Value)
-    sub1 = txt(Hoja("DATOS").Range(D_SUBG).Value)
+    ent = Txt(Hoja("DATOS").Range(D_ENTIDAD).Value)
+    ger = Txt(Hoja("DATOS").Range(D_GEREN).Value)
+    sub1 = Txt(Hoja("DATOS").Range(D_SUBG).Value)
     proy = Limpio(Hoja("DATOS").Range(D_PROY).Value)
-    f1 = txt(Hoja("DATOS").Range(D_F1).Value)
-    f2 = txt(Hoja("DATOS").Range(D_F2).Value)
-    f3 = txt(Hoja("DATOS").Range(D_F3).Value)
-    f4 = txt(Hoja("DATOS").Range(D_F4).Value)
+    f1 = Txt(Hoja("DATOS").Range(D_F1).Value)
+    f2 = Txt(Hoja("DATOS").Range(D_F2).Value)
+    f3 = Txt(Hoja("DATOS").Range(D_F3).Value)
+    f4 = Txt(Hoja("DATOS").Range(D_F4).Value)
 
     copObj = True
     On Error Resume Next
@@ -242,7 +241,7 @@ Public Function ArmarTarjetas(ByVal esKardex As Boolean, ByVal conPdf As Boolean
     Application.CopyObjectsWithCells = True
     wsK.ResetAllPageBreaks
     BorrarFormas wsK
-    wsK.Cells.Delete
+    BorrarFilas wsK
     On Error GoTo 0
     wsK.Cells.Clear
     For c = 1 To ucol
@@ -398,6 +397,10 @@ Public Function ArmarTarjetas(ByVal esKardex As Boolean, ByVal conPdf As Boolean
     Application.CopyObjectsWithCells = copObj
     On Error GoTo 0
 
+    For k = 1 To anCat
+        If desde(k) > 0 Then MarcarBloque wsK, desde(k), aCod(k) & " " & aDes(k), hasta(k)
+    Next k
+    OcultarMarcas wsK
     If r0 > 1 Then
         area = "$B$1:$P$" & (r0 - 1)
         On Error Resume Next
@@ -405,51 +408,20 @@ Public Function ArmarTarjetas(ByVal esKardex As Boolean, ByVal conPdf As Boolean
         On Error GoTo 0
     End If
     Fin cm
+    If esKardex Then                              ' cada tarjeta entra completa en la hoja, con márgenes
+        PaginaFormato wsK, "KARDEX"
+    Else
+        PaginaFormato wsK, "BINCARD"
+    End If
     ArmarTarjetas = nTar
 
     msg = "Se armaron " & nTar & " tarjetas de " & nombre & " (" & totPag & " hojas) del mes de " & MesTexto() & "."
-    If conPdf And nTar > 0 Then
-        Estado "Exportando " & nombre & " a PDF..."
-        archivo = GuardarComo(RutaSugerida(nombre, nombre & "_" & MesArchivo() & "_TODOS.pdf"), _
-                              "Guardar el PDF de " & nombre & " (todas las tarjetas) como", "PDF")
-        If archivo = "" Then
-            msg = msg & vbCrLf & vbCrLf & "No se generó el PDF (se canceló «Guardar como»). Las tarjetas están en la hoja " & nombre & "."
-        Else
-            carpeta = CarpetaDe(archivo)
-            ok = ExportarPDF(wsK, archivo)
-            If ok Then
-                nPdf = 1
-                If porInsumo Then
-                    sub2 = SubcarpetaPor(carpeta, nombre, "POR_INSUMO")
-                    If CrearCarpeta(sub2) Then
-                        For k = 1 To anCat
-                            If desde(k) > 0 Then
-                                Estado "PDF por insumo: " & aCod(k)
-                                On Error Resume Next
-                                wsK.PageSetup.PrintArea = "$B$" & desde(k) & ":$P$" & hasta(k)
-                                On Error GoTo 0
-                                If ExportarPDF(wsK, sub2 & sep() & nombre & "_" & _
-                                               NombreSeguro(aCod(k) & " " & aDes(k), 70) & ".pdf") Then nPdf = nPdf + 1
-                            End If
-                        Next k
-                        On Error Resume Next
-                        wsK.PageSetup.PrintArea = area
-                        On Error GoTo 0
-                    End If
-                End If
-                msg = msg & vbCrLf & vbCrLf & "PDF generados: " & nPdf & vbCrLf & archivo
-                Mensaje D_MSGPDF, nombre & ": " & nTar & " tarjetas, " & nPdf & " PDF (" & Format(Now, "dd/mm/yyyy hh:mm") & _
-                        ") en " & carpeta
-            Else
-                msg = msg & vbCrLf & vbCrLf & "No se pudo crear el PDF en:" & vbCrLf & archivo & vbCrLf & _
-                      "(¿el archivo está abierto en otro programa?)"
-            End If
-        End If
-        Estado ""
-    End If
+    If nTar > 0 And Not gAcum Then msg = msg & vbCrLf & vbCrLf & "Revise (y corrija si hace falta) la hoja " & nombre & _
+                         "; luego use el botón PDF " & nombre & " para exportarla."
     If Not gSilencio Then
         wsK.Activate
         wsK.Range("A1").Select
     End If
     Aviso msg, nombre
+    If conPDF And nTar > 0 Then msg = ExportarFormato(nombre)
 End Function

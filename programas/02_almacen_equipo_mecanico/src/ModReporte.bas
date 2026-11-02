@@ -141,7 +141,7 @@ Private Function SumaFila(ByVal ws As Worksheet, ByVal r As Long, ByVal c1 As Lo
 End Function
 
 Private Function EsRubro(ByVal ws As Worksheet, ByVal r As Long) As Boolean
-    EsRubro = (txt(ws.Cells(r, 3).Value) = "" And txt(ws.Cells(r, 5).Value) = "" And txt(ws.Cells(r, 6).Value) = "")
+    EsRubro = (Txt(ws.Cells(r, 3).Value) = "" And Txt(ws.Cells(r, 5).Value) = "" And Txt(ws.Cells(r, 6).Value) = "")
 End Function
 
 
@@ -160,10 +160,10 @@ Public Sub LeerInv()
     If last < 2 Then Exit Sub
     v = ws.Range("A2:J" & last).Value
     For r = 1 To UBound(v, 1)
-        a = txt(v(r, 1))
+        a = Txt(v(r, 1))
         b = Limpio(v(r, 2))
         If a <> "" Or b <> "" Then
-            If txt(v(r, 3)) = "" And txt(v(r, 5)) = "" And txt(v(r, 6)) = "" Then
+            If Txt(v(r, 3)) = "" And Txt(v(r, 5)) = "" And Txt(v(r, 6)) = "" Then
                 rN = rN + 1
                 rNom(rN) = UCase(b)
                 rNum(rN) = IIf(a = "", CStr(rN), a)
@@ -185,7 +185,7 @@ Public Sub LeerInv()
                 col.Add cN, UCase(a)
                 cItem(cN) = a
                 cDes(cN) = b
-                cUnd(cN) = txt(v(r, 3))
+                cUnd(cN) = Txt(v(r, 3))
                 cTipo(cN) = Doc(Limpio(v(r, 4)))
                 cPU(cN) = Num(v(r, 5))
                 cCant(cN) = Num(v(r, 6))
@@ -210,8 +210,8 @@ Private Sub Leer410()
     ReDim tItem(1 To n): ReDim tG(1 To n): ReDim tE(1 To n, 1 To 31): ReDim tS(1 To n, 1 To 31): ReDim tUsado(1 To n)
     If last < F0 Then Exit Sub
     For r = F0 To last
-        If UCase(txt(ws.Cells(r, 6).Value)) = "ENTRADA" Then
-            key = txt(ws.Cells(r, 2).Value)
+        If UCase(Txt(ws.Cells(r, 6).Value)) = "ENTRADA" Then
+            key = Txt(ws.Cells(r, 2).Value)
             If key <> "" And Buscar(tCol, UCase(key)) = 0 Then
                 tN = tN + 1
                 tItem(tN) = key
@@ -237,7 +237,7 @@ Private Sub Leer415()
     If n < 1 Then n = 1
     ReDim qCod(1 To n): ReDim qG(1 To n, 1 To 31): ReDim qH(1 To n, 1 To 31)
     For r = F0Q To last
-        key = txt(ws.Cells(r, C_RAS).Value)
+        key = Txt(ws.Cells(r, C_RAS).Value)
         If key <> "" And Buscar(qCol, UCase(key)) = 0 Then
             qN = qN + 1
             qCod(qN) = key
@@ -298,6 +298,12 @@ Public Function ActualizarCuadros(ByVal silencio As Boolean) As String
         End If
     Next i
     Fin cm
+    ' página de cada cuadro: todo el ancho en una hoja, títulos repetidos, sin cortes
+    AjustarInforme HojaPref("INV.")
+    AjustarInforme HojaPref("4.10")
+    AjustarInforme HojaPref("4.11")
+    AjustarInforme HojaPref("4.12")
+    AjustarInforme HojaPref("4.15")
     msg = "Cuadros actualizados (" & MesTexto() & "): " & cN & " ítems en " & rN & " rubros del INV.; " & enEq & " equipos en el 4.15."
     If nDup > 0 Then msg = msg & vbCrLf & "Atención: " & nDup & " ítem(s) con número repetido en INV. (se les agregó -1, -2...)."
     If nNeg > 0 Then msg = msg & vbCrLf & vbCrLf & "SALDO NEGATIVO en " & nNeg & " ítem(s) (revise las salidas del 4.10):" & neg
@@ -406,7 +412,7 @@ Private Sub Armar411()
     last = UltimaFila(w10, 6, F0, 8000)
     r = F0
     Do While r <= last
-        If txt(w10.Cells(r, 6).Value) = "ENTRADA" Then
+        If Txt(w10.Cells(r, 6).Value) = "ENTRADA" Then
             CopiarDe wsT, 15, 16, ws, r
             For c = 2 To 7
                 ws.Cells(r, c).Formula = "=" & h & Dir1(w10, r, c) & "&"""""
@@ -533,7 +539,7 @@ Private Function DescCatalogoR(ByVal cod As String) As String
     Next k
     Set ws = Hoja("CATALOGO")
     f = Application.Match(cod, ws.Range(ws.Cells(CT0, CC_COD), ws.Cells(CTMAX, CC_COD)), 0)
-    If Not IsError(f) Then DescCatalogoR = UCase(txt(ws.Cells(CT0 + CLng(f) - 1, CC_DES).Value))
+    If Not IsError(f) Then DescCatalogoR = UCase(Txt(ws.Cells(CT0 + CLng(f) - 1, CC_DES).Value))
 End Function
 
 Private Sub Armar415()
@@ -764,14 +770,14 @@ Public Sub LeerPartes415()
     last = ws.UsedRange.Row + ws.UsedRange.Rows.Count
     n = 0
     For r = F0Q To last
-        If txt(ws.Cells(r, C_RAS).Value) <> "" Then n = n + 31
+        If Txt(ws.Cells(r, C_RAS).Value) <> "" Then n = n + 31
     Next r
     If n < 1 Then n = 1
     ReDim pR(1 To n): ReDim pEq(1 To n): ReDim pFec(1 To n): ReDim pOrden(1 To n)
     ReDim pV(1 To n, 1 To PC_ULT)
     For r = F0Q To last
-        If txt(ws.Cells(r, C_RAS).Value) <> "" Then
-            k = Buscar(eCol, UCase(txt(ws.Cells(r, C_RAS).Value)))
+        If Txt(ws.Cells(r, C_RAS).Value) <> "" Then
+            k = Buscar(eCol, UCase(Txt(ws.Cells(r, C_RAS).Value)))
             If k > 0 Then
                 For d = 1 To DiasMes()
                     g = Num(ws.Cells(r, D1Q + d - 1).Value)
@@ -806,7 +812,7 @@ Public Sub CerrarCuadros()
     Application.Calculate
     last = UltimaFila(ws, 6, F0, 8000)
     For r = F0 To last
-        If txt(ws.Cells(r, 6).Value) = "ENTRADA" Then
+        If Txt(ws.Cells(r, 6).Value) = "ENTRADA" Then
             s = Num(ws.Cells(r, 7).Value) + Application.WorksheetFunction.Sum(ws.Range(ws.Cells(r, D1), ws.Cells(r, D1 + 30))) - _
                 Application.WorksheetFunction.Sum(ws.Range(ws.Cells(r + 1, D1), ws.Cells(r + 1, D1 + 30)))
             ws.Cells(r, 7).Value = Redondear(s, 4)
@@ -817,8 +823,8 @@ Public Sub CerrarCuadros()
     Set we = Hoja("EQUIPOS")
     last = ws.UsedRange.Row + ws.UsedRange.Rows.Count
     For r = F0Q To last
-        If txt(ws.Cells(r, C_RAS).Value) <> "" Then
-            fe = FilaEquipo(txt(ws.Cells(r, C_RAS).Value))
+        If Txt(ws.Cells(r, C_RAS).Value) <> "" Then
+            fe = FilaEquipo(Txt(ws.Cells(r, C_RAS).Value))
             If fe > 0 Then
                 we.Cells(fe, EC_ANT).Value = Redondear(Num(we.Cells(fe, EC_ANT).Value) + _
                     Application.WorksheetFunction.Sum(ws.Range(ws.Cells(r + 1, D1Q), ws.Cells(r + 1, D1Q + 30))), 4)
@@ -920,10 +926,10 @@ Public Sub TraerDatosAnteriores()
     Set w10 = HojaPref("4.10")
     last = UltimaFila(w10, 6, F0, 8000)
     For r = F0 To last
-        If txt(w10.Cells(r, 6).Value) = "ENTRADA" Then
+        If Txt(w10.Cells(r, 6).Value) = "ENTRADA" Then
             k = 0
             For j = 1 To anCat
-                If itNum(j) = txt(w10.Cells(r, 2).Value) Then k = j: Exit For
+                If itNum(j) = Txt(w10.Cells(r, 2).Value) Then k = j: Exit For
             Next j
             If k > 0 Then
                 ReDim v(1 To 2, 1 To 31)
@@ -949,8 +955,8 @@ Public Sub TraerDatosAnteriores()
     Set w15 = HojaPref("4.15")
     last = w15.UsedRange.Row + w15.UsedRange.Rows.Count
     For r = F0Q To last
-        If txt(w15.Cells(r, C_RAS).Value) <> "" Then
-            k = Buscar(eCol, UCase(txt(w15.Cells(r, C_RAS).Value)))
+        If Txt(w15.Cells(r, C_RAS).Value) <> "" Then
+            k = Buscar(eCol, UCase(Txt(w15.Cells(r, C_RAS).Value)))
             If k > 0 Then
                 ReDim v(1 To 2, 1 To 31)
                 For x = 1 To pnPar
@@ -1021,7 +1027,7 @@ Falla:
 End Function
 
 Private Function Exportar(ByVal hojas As Variant, ByVal tema As String, ByVal preguntarPdf As Boolean) As String
-    Dim wb As Workbook, ruta As String, rutaPdf As String, msg As String, l As Variant
+    Dim wb As Workbook, ruta As String, rutaPdf As String, msg As String, l As Variant, wsX As Worksheet
     Exportar = ""
     ThisWorkbook.Worksheets(hojas).Copy
     Set wb = ActiveWorkbook
@@ -1029,6 +1035,9 @@ Private Function Exportar(ByVal hojas As Variant, ByVal tema As String, ByVal pr
     l = wb.LinkSources(1)
     If Not IsEmpty(l) Then wb.BreakLink Name:=ThisWorkbook.FullName, Type:=1
     On Error GoTo 0
+    For Each wsX In wb.Worksheets
+        AjustarInforme wsX
+    Next wsX
     ruta = GuardarLibro(wb, tema, rutaPdf, preguntarPdf)
     If ruta = "" Then
         msg = tema & ": el libro quedó abierto sin guardar (se canceló «Guardar como»)."

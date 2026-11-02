@@ -53,7 +53,7 @@ Public Function Procesar() As String
         Application.Calculate
         v = ws.Range(ws.Cells(MV0, 16), ws.Cells(last, 16)).Value
         For i = 1 To UBound(v, 1)
-            If txt(v(i, 1)) <> "" And txt(v(i, 1)) <> "OK" Then nObs = nObs + 1
+            If Txt(v(i, 1)) <> "" And Txt(v(i, 1)) <> "OK" Then nObs = nObs + 1
         Next i
     End If
 
@@ -132,11 +132,11 @@ Public Function Procesar() As String
     If last >= EQ0 Then
         v = ws.Range(ws.Cells(EQ0, 1), ws.Cells(last, EC_ULT)).Value
         For i = 1 To UBound(v, 1)
-            If txt(v(i, EC_COD)) <> "" And EsNum(v(i, EC_CANT)) Then
+            If Txt(v(i, EC_COD)) <> "" And EsNum(v(i, EC_CANT)) Then
                 If Num(v(i, EC_CANT)) > 0 And Num(v(i, EC_SALDO)) < -0.005 Then
                     nExc = nExc + 1
-                    exc = exc & vbCrLf & "   • " & txt(v(i, EC_COD)) & " " & Left(Limpio(v(i, EC_DES)), 40) & ": excede en " & _
-                          Format(-Num(v(i, EC_SALDO)), "#,##0.00") & " " & txt(v(i, EC_UND))
+                    exc = exc & vbCrLf & "   • " & Txt(v(i, EC_COD)) & " " & Left(Limpio(v(i, EC_DES)), 40) & ": excede en " & _
+                          Format(-Num(v(i, EC_SALDO)), "#,##0.00") & " " & Txt(v(i, EC_UND))
                 End If
             End If
         Next i

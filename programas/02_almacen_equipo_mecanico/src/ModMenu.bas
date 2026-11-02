@@ -6,35 +6,21 @@ Option Explicit
 '==========================================================================================
 
 Public Sub GenerarTodo()
-    Dim porUno As Boolean, n As Long, s As String, carpeta As String, inf As Boolean
-    porUno = Pregunta("Se actualizan los cuadros, se arman los KARDEX, las tarjetas BINCARD y los PARTES DIARIOS y se guardan en PDF." & _
-                      vbCrLf & vbCrLf & "¿Desea además un PDF por cada insumo y por cada equipo?", "GENERAR TODO", False)
-    inf = Pregunta("¿Generar también el INFORME MENSUAL de almacén (INV., 4.10, 4.11, 4.12) y de equipo mecánico (4.15)" & _
-                   " en Excel y PDF?", "GENERAR TODO", True)
-    carpeta = ElegirCarpetaDesde("Elija la carpeta donde se guardarán todos los archivos (Guardar en...)", CarpetaSalida(""))
-    If carpeta = "" Then
-        Aviso "Se canceló la elección de la carpeta: no se generó nada.", "GENERAR TODO", 48
-        Exit Sub
-    End If
-    gCarpetaFija = carpeta
+    ' GENERAR LOS TRES: actualiza los cuadros y arma kardex, bincard y partes en sus hojas (sin PDF)
+    Dim n As Long, s As String
     gAcum = True
     gTexto = ""
     On Error GoTo Sale
     s = ActualizarCuadros(True)
     gTexto = "ACTUALIZAR CUADROS" & vbCrLf & s & vbCrLf & vbCrLf
-    n = ArmarTarjetas(True, True, porUno)
-    n = ArmarTarjetas(False, True, porUno)
-    n = ArmarPartes(True, porUno)
-    If inf Then
-        s = ExportarInformeAlmacen(False)
-        s = ExportarInformeEquipos(False)
-        ThisWorkbook.Activate
-    End If
+    n = ArmarTarjetas(True, False, False)
+    n = ArmarTarjetas(False, False, False)
+    n = ArmarPartes(False, False)
 Sale:
     gAcum = False
-    gCarpetaFija = ""
     If Err.Number <> 0 Then gTexto = gTexto & "Error: " & Err.Description
-    Aviso "Carpeta: " & carpeta & vbCrLf & vbCrLf & gTexto, "GENERAR TODO"
+    Aviso gTexto & "Revise las hojas KARDEX, BINCARD y PARTE_DIARIO; después exporte con los botones PDF (o PDF DE TODO).", _
+          "GENERAR LOS TRES"
     gTexto = ""
 End Sub
 
@@ -53,7 +39,7 @@ Public Function Respaldo(ByVal sufijo As String) As String
     nom = ThisWorkbook.Name
     k = InStrRev(nom, ".")
     If k > 0 Then nom = Left(nom, k - 1)
-    ruta = raiz & sep() & nom & "_" & sufijo & ".xlsm"
+    ruta = raiz & Sep() & nom & "_" & sufijo & ".xlsm"
     On Error GoTo Falla
     ThisWorkbook.SaveCopyAs ruta
     Respaldo = ruta
@@ -62,10 +48,10 @@ Falla:
     Respaldo = ""
 End Function
 
-Private Sub VaciarColumnas(ByVal ws As Worksheet, ByVal F0 As Long, ByVal f1 As Long, ByVal desde As Variant, ByVal hasta As Variant)
+Private Sub VaciarColumnas(ByVal ws As Worksheet, ByVal f0 As Long, ByVal f1 As Long, ByVal desde As Variant, ByVal hasta As Variant)
     Dim i As Long
     For i = LBound(desde) To UBound(desde)
-        ws.Range(ws.Cells(F0, desde(i)), ws.Cells(f1, hasta(i))).ClearContents
+        ws.Range(ws.Cells(f0, desde(i)), ws.Cells(f1, hasta(i))).ClearContents
     Next i
 End Sub
 
@@ -78,6 +64,11 @@ Private Sub VaciarSalidas()
         Hoja(n).Cells.Clear
         On Error GoTo 0
     Next n
+    On Error Resume Next
+    ThisWorkbook.Worksheets(HOJA_A4).ResetAllPageBreaks
+    BorrarFormas ThisWorkbook.Worksheets(HOJA_A4)
+    ThisWorkbook.Worksheets(HOJA_A4).Cells.Clear
+    On Error GoTo 0
 End Sub
 
 Public Sub CerrarMes()
@@ -102,7 +93,7 @@ Public Sub CerrarMes()
     t = MesInicio()
     Hoja("DATOS").Range(D_MES).Value = DateSerial(Year(CDate(t)), Month(CDate(t)) + 1, 1)
     Hoja("DATOS").Range(D_CORTE).Value = DateSerial(Year(CDate(t)), Month(CDate(t)) + 2, 0)
-    s = txt(Hoja("DATOS").Range(D_NINF).Value)
+    s = Txt(Hoja("DATOS").Range(D_NINF).Value)
     If EsDigitos(s) Then
         Hoja("DATOS").Range(D_NINF).NumberFormat = "@"
         Hoja("DATOS").Range(D_NINF).Value = Format(Val(s) + 1, String(Len(s), "0"))

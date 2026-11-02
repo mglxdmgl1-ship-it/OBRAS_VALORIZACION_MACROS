@@ -38,7 +38,7 @@ Private mIni As Double, mFin As Double
 
 Public Sub ImportarControl()
     Dim r As Variant, ruta As String, msg As String
-    ruta = txt(Hoja("DATOS").Range(D_CTRL).Value)
+    ruta = Txt(Hoja("DATOS").Range(D_CTRL).Value)
     If ruta <> "" Then
         On Error Resume Next
         If Dir(ruta) = "" Then ruta = ""
@@ -62,7 +62,7 @@ End Sub
 
 
 Private Function Opcion(ByVal celda As String) As Boolean
-    Opcion = (UCase(Left(txt(Hoja("DATOS").Range(celda).Value), 1)) <> "N")
+    Opcion = (UCase(Left(Txt(Hoja("DATOS").Range(celda).Value), 1)) <> "N")
 End Function
 
 Public Function TieneHoja(ByVal wb As Workbook, ByVal nombre As String) As Boolean
@@ -275,7 +275,7 @@ Public Function ImportarControlDe(ByVal ruta As String) As String
     Dim vR As Variant, vA As Variant, vI As Variant, vG As Variant, v As Variant, fechas(1 To 31) As Double
     Dim mesC As Double, nR As Long, nA As Long, nI As Long, nG As Long, last As Long, nm As String, s As String
     Dim opCat As Boolean, opIng As Boolean, opSal As Boolean, opPar As Boolean, colP As Collection, nxtA() As Long
-    Dim kp As String, m As Double, q As Double, cod As String, des As String, und As String, F0 As Long
+    Dim kp As String, m As Double, q As Double, cod As String, des As String, und As String, f0 As Long
     Dim ws As Worksheet, vM As Variant, oM() As Variant, cntM As Long, nRowsM As Long, orig As String, vacia As Boolean
     Dim vP As Variant, oP() As Variant, nP As Long, nRowsP As Long, tk() As Long, tq() As Double, nt As Long
     Dim ej() As Long, ea() As Double, nE As Long, fk() As Long, fq() As Double, nF As Long, best As Long
@@ -361,18 +361,18 @@ Public Function ImportarControlDe(ByVal ruta As String) As String
     If last >= CT0 Then
         v = ws.Range(ws.Cells(CT0, 1), ws.Cells(last, CC_ULT)).Value
         For i = 1 To UBound(v, 1)
-            k = Buscar(aCol, UCase(txt(v(i, CC_COD))))
+            k = Buscar(aCol, UCase(Txt(v(i, CC_COD))))
             If k > 0 Then
                 cFac(k) = Num(v(i, CC_FAC))
                 If cFac(k) <= 0 Then cFac(k) = 1
-                nombres = Split(txt(v(i, CC_ACU)), ";")
+                nombres = Split(Txt(v(i, CC_ACU)), ";")
                 For j = 0 To UBound(nombres)
                     Mapear mapCat, Normal(nombres(j)), k, False
                 Next j
             End If
         Next i
         For i = 1 To UBound(v, 1)
-            k = Buscar(aCol, UCase(txt(v(i, CC_COD))))
+            k = Buscar(aCol, UCase(Txt(v(i, CC_COD))))
             If k > 0 Then Mapear mapCat, Normal(v(i, CC_DES)), k, True
         Next i
     End If
@@ -380,7 +380,7 @@ Public Function ImportarControlDe(ByVal ruta As String) As String
     For i = 1 To nI
         nm = Normal(vI(i, 2))
         If nm <> "" Then
-            If UCase(txt(vI(i, 6))) = "NO" Then
+            If UCase(Txt(vI(i, 6))) = "NO" Then
                 Mapear mapCtl, nm, 2, True
             Else
                 Mapear mapCtl, nm, 1, True
@@ -392,11 +392,11 @@ Public Function ImportarControlDe(ByVal ruta As String) As String
     If nA > 0 Then
         ReDim nxtA(1 To nA)
         For a = nA To 1 Step -1
-            kp = Clave(txt(vA(a, 1)))
+            kp = Clave(Txt(vA(a, 1)))
             If kp <> "" Then
-                F0 = Buscar(colP, kp)
-                nxtA(a) = F0
-                If F0 > 0 Then colP.Remove kp
+                f0 = Buscar(colP, kp)
+                nxtA(a) = f0
+                If f0 > 0 Then colP.Remove kp
                 colP.Add a, kp
             End If
         Next a
@@ -405,7 +405,7 @@ Public Function ImportarControlDe(ByVal ruta As String) As String
     ' ---- materiales nuevos para el catálogo (con consumo en el mes o con ingreso en el mes)
     If opCat Then
         For i = 1 To nR
-            cod = txt(vR(i, 2))
+            cod = Txt(vR(i, 2))
             If cod <> "" Then
                 m = 0
                 For d = 1 To 31
@@ -414,10 +414,10 @@ Public Function ImportarControlDe(ByVal ruta As String) As String
                 If m > 0 Then
                     a = Buscar(colP, Clave(cod))
                     Do While a > 0
-                        If UCase(txt(vA(a, 4))) = "MAT" And Not EsGlobal(txt(vA(a, 3))) Then
+                        If UCase(Txt(vA(a, 4))) = "MAT" And Not EsGlobal(Txt(vA(a, 3))) Then
                             nm = Normal(vA(a, 2))
                             If Buscar(mapCat, nm) = 0 And Controlar(nm) And Not Excluido(nm) Then
-                                k = AgregarCatalogo(Limpio(vA(a, 2)), txt(vA(a, 3)), Num(vA(a, 6)))
+                                k = AgregarCatalogo(Limpio(vA(a, 2)), Txt(vA(a, 3)), Num(vA(a, 6)))
                             End If
                         End If
                         a = nxtA(a)
@@ -433,7 +433,7 @@ Public Function ImportarControlDe(ByVal ruta As String) As String
                         k = 0
                         For a = 1 To nI
                             If Normal(vI(a, 2)) = nm Then
-                                If UCase(txt(vI(a, 4))) = "MAT" Then k = AgregarCatalogo(Limpio(vI(a, 2)), txt(vI(a, 3)), Num(vI(a, 5)))
+                                If UCase(Txt(vI(a, 4))) = "MAT" Then k = AgregarCatalogo(Limpio(vI(a, 2)), Txt(vI(a, 3)), Num(vI(a, 5)))
                                 Exit For
                             End If
                         Next a
@@ -454,11 +454,11 @@ Public Function ImportarControlDe(ByVal ruta As String) As String
     If last >= MV0 Then
         vM = ws.Range(ws.Cells(MV0, 1), ws.Cells(last, MC_ULT)).Value
         For i = 1 To UBound(vM, 1)
-            orig = UCase(txt(vM(i, MC_ORIG)))
+            orig = UCase(Txt(vM(i, MC_ORIG)))
             vacia = True
             For c = MC_FEC To MC_ORIG
                 If c <> 10 And c <> 11 Then
-                    If txt(vM(i, c)) <> "" Then vacia = False
+                    If Txt(vM(i, c)) <> "" Then vacia = False
                 End If
             Next c
             If Not vacia Then
@@ -467,10 +467,10 @@ Public Function ImportarControlDe(ByVal ruta As String) As String
                     For c = MC_FEC To MC_ORIG
                         oM(cntM, c) = vM(i, c)
                     Next c
-                    If UCase(txt(vM(i, MC_TIPO))) = T_ING Then
-                        llave = "I|" & Fecha(vM(i, MC_FEC)) & "|" & UCase(txt(vM(i, MC_COD))) & "|" & Format(Num(vM(i, MC_CANT)), "0.00")
+                    If UCase(Txt(vM(i, MC_TIPO))) = T_ING Then
+                        llave = "I|" & Fecha(vM(i, MC_FEC)) & "|" & UCase(Txt(vM(i, MC_COD))) & "|" & Format(Num(vM(i, MC_CANT)), "0.00")
                     Else
-                        llave = "S|" & Fecha(vM(i, MC_FEC)) & "|" & UCase(txt(vM(i, MC_COD))) & "|" & Clave(txt(vM(i, MC_PART)))
+                        llave = "S|" & Fecha(vM(i, MC_FEC)) & "|" & UCase(Txt(vM(i, MC_COD))) & "|" & Clave(Txt(vM(i, MC_PART)))
                     End If
                     If Buscar(ya2, llave) = 0 Then ya2.Add 1, llave
                 End If
@@ -479,7 +479,7 @@ Public Function ImportarControlDe(ByVal ruta As String) As String
     End If
     If opIng Then
         For i = 1 To nG
-            If EnMes(Fecha(vG(i, 2))) And txt(vG(i, 9)) <> "" And Num(vG(i, 12)) > 0 Then
+            If EnMes(Fecha(vG(i, 2))) And Txt(vG(i, 9)) <> "" And Num(vG(i, 12)) > 0 Then
                 k = Buscar(mapCat, Normal(vG(i, 9)))
                 If k > 0 Then
                     llave = "I|" & Fecha(vG(i, 2)) & "|" & UCase(aCod(k)) & "|" & Format(Redondear(Num(vG(i, 12)) * cFac(k), 4), "0.00")
@@ -496,11 +496,11 @@ Public Function ImportarControlDe(ByVal ruta As String) As String
                     oM(cntM, MC_DOC) = Limpio(vG(i, 3))
                     oM(cntM, MC_NDOC) = Limpio(vG(i, 4))
                     oM(cntM, MC_PROC) = Limpio(vG(i, 5))
-                    oM(cntM, MC_PART) = txt(vG(i, 13))
+                    oM(cntM, MC_PART) = Txt(vG(i, 13))
                     oM(cntM, MC_COD) = aCod(k)
                     oM(cntM, MC_CANT) = Redondear(Num(vG(i, 12)) * cFac(k), 4)
                     s = Limpio(vG(i, 16))
-                    If UCase(txt(vG(i, 15))) = "POR CONFIRMAR" Then s = Trim("POR CONFIRMAR. " & s)
+                    If UCase(Txt(vG(i, 15))) = "POR CONFIRMAR" Then s = Trim("POR CONFIRMAR. " & s)
                     oM(cntM, MC_OBS) = s
                     oM(cntM, MC_ORIG) = OR_ING
                 ElseIf k = 0 And Not Excluido(Normal(vG(i, 9))) Then
@@ -514,7 +514,7 @@ Public Function ImportarControlDe(ByVal ruta As String) As String
             If EnMes(fechas(d)) Then
                 For i = 1 To nR
                     m = Num(vR(i, X_D1 + d - 1))
-                    cod = txt(vR(i, 2))
+                    cod = Txt(vR(i, 2))
                     If m > 0 And cod <> "" Then
                         des = Limpio(vR(i, 3))
                         nt = 0
@@ -522,7 +522,7 @@ Public Function ImportarControlDe(ByVal ruta As String) As String
                         ReDim tq(1 To 60)
                         a = Buscar(colP, Clave(cod))
                         Do While a > 0
-                            If UCase(txt(vA(a, 4))) = "MAT" Then
+                            If UCase(Txt(vA(a, 4))) = "MAT" Then
                                 nm = Normal(vA(a, 2))
                                 k = Buscar(mapCat, nm)
                                 If k > 0 Then
@@ -538,7 +538,7 @@ Public Function ImportarControlDe(ByVal ruta As String) As String
                                     ElseIf e > 0 Then
                                         tq(e) = tq(e) + q
                                     End If
-                                ElseIf Controlar(nm) And Not Excluido(nm) And Not EsGlobal(txt(vA(a, 3))) Then
+                                ElseIf Controlar(nm) And Not Excluido(nm) And Not EsGlobal(Txt(vA(a, 3))) Then
                                     SinCatalogo Limpio(vA(a, 2))
                                 End If
                             End If
@@ -602,11 +602,11 @@ Public Function ImportarControlDe(ByVal ruta As String) As String
         If last >= EQ0 Then
             v = ws.Range(ws.Cells(EQ0, 1), ws.Cells(last, EC_ULT)).Value
             For i = 1 To UBound(v, 1)
-                If txt(v(i, EC_COD)) <> "" Then
+                If Txt(v(i, EC_COD)) <> "" Then
                     nEqI = nEqI + 1
-                    qCod(nEqI) = txt(v(i, EC_COD))
-                    qComb(nEqI) = Buscar(aCol, UCase(txt(v(i, EC_COMB))))
-                    nombres = Split(txt(v(i, EC_ACU)), ";")
+                    qCod(nEqI) = Txt(v(i, EC_COD))
+                    qComb(nEqI) = Buscar(aCol, UCase(Txt(v(i, EC_COMB))))
+                    nombres = Split(Txt(v(i, EC_ACU)), ";")
                     For j = 0 To UBound(nombres)
                         Mapear mapEq, Normal(nombres(j)), nEqI, False
                     Next j
@@ -614,7 +614,7 @@ Public Function ImportarControlDe(ByVal ruta As String) As String
             Next i
             j = 0
             For i = 1 To UBound(v, 1)
-                If txt(v(i, EC_COD)) <> "" Then
+                If Txt(v(i, EC_COD)) <> "" Then
                     j = j + 1
                     Mapear mapEq, Normal(v(i, EC_DES)), j, True
                 End If
@@ -632,15 +632,15 @@ Public Function ImportarControlDe(ByVal ruta As String) As String
                 vacia = True
                 For c = PC_FEC To PC_ORIG
                     If c <> 4 And c <> PC_HACU And c <> PC_HVAL Then
-                        If txt(vP(i, c)) <> "" Then vacia = False
+                        If Txt(vP(i, c)) <> "" Then vacia = False
                     End If
                 Next c
-                If Not vacia And UCase(txt(vP(i, PC_ORIG))) <> UCase(OR_ACU) Then
+                If Not vacia And UCase(Txt(vP(i, PC_ORIG))) <> UCase(OR_ACU) Then
                     nP = nP + 1
                     For c = PC_FEC To PC_ORIG
                         oP(nP, c) = vP(i, c)
                     Next c
-                    llave = "P|" & Fecha(vP(i, PC_FEC)) & "|" & UCase(txt(vP(i, PC_EQ))) & "|" & Clave(txt(vP(i, PC_PART)))
+                    llave = "P|" & Fecha(vP(i, PC_FEC)) & "|" & UCase(Txt(vP(i, PC_EQ))) & "|" & Clave(Txt(vP(i, PC_PART)))
                     If Buscar(ya2, llave) = 0 Then ya2.Add 1, llave
                 End If
             Next i
@@ -649,10 +649,10 @@ Public Function ImportarControlDe(ByVal ruta As String) As String
             If EnMes(fechas(d)) Then
                 For i = 1 To nR
                     m = Num(vR(i, X_D1 + d - 1))
-                    cod = txt(vR(i, 2))
+                    cod = Txt(vR(i, 2))
                     If m > 0 And cod <> "" Then
                         des = Limpio(vR(i, 3))
-                        und = txt(vR(i, 4))
+                        und = Txt(vR(i, 4))
                         nE = 0
                         ReDim ej(1 To 30)
                         ReDim ea(1 To 30)
@@ -662,10 +662,10 @@ Public Function ImportarControlDe(ByVal ruta As String) As String
                         a = Buscar(colP, Clave(cod))
                         Do While a > 0
                             nm = Normal(vA(a, 2))
-                            If UCase(txt(vA(a, 4))) = "EQ" And InStr(1, nm, "HERRAMIENTA", vbBinaryCompare) = 0 _
+                            If UCase(Txt(vA(a, 4))) = "EQ" And InStr(1, nm, "HERRAMIENTA", vbBinaryCompare) = 0 _
                                And Not Excluido(nm) And Num(vA(a, 5)) > 0 Then
                                 j = Buscar(mapEq, nm)
-                                If j = 0 Then j = AgregarEquipo(Limpio(vA(a, 2)), txt(vA(a, 3)))
+                                If j = 0 Then j = AgregarEquipo(Limpio(vA(a, 2)), Txt(vA(a, 3)))
                                 If j > 0 Then
                                     e = 0
                                     For c = 1 To nE
@@ -679,7 +679,7 @@ Public Function ImportarControlDe(ByVal ruta As String) As String
                                         If Num(vA(a, 5)) > ea(e) Then ea(e) = Num(vA(a, 5))
                                     End If
                                 End If
-                            ElseIf UCase(txt(vA(a, 4))) = "MAT" Then
+                            ElseIf UCase(Txt(vA(a, 4))) = "MAT" Then
                                 k = Buscar(mapCat, nm)
                                 If k > 0 Then
                                     If aGru(k) = "COMBUSTIBLE" Or EsComb(aDes(k)) Then

@@ -37,28 +37,28 @@ Private Sub CopiarDatos(ByVal wb As Workbook)
     Set ws = wb.Worksheets("DATOS")
     Set src = Hoja("DATOS")
     For Each c In Array(D_ENTIDAD, D_GEREN, D_SUBG, D_PROY, D_CUI, D_META, D_UBIC, D_MODAL, D_NINF)
-        If txt(src.Range(c).Value) <> "" Then
+        If Txt(src.Range(c).Value) <> "" Then
             ws.Range(c).NumberFormat = "@"
-            ws.Range(c).Value = txt(src.Range(c).Value)
+            ws.Range(c).Value = Txt(src.Range(c).Value)
         End If
     Next c
     ws.Range(D_MES).Value = CDate(MesInicio())
     ws.Range(D_CORTE).Value = CDate(FechaCorte())
 End Sub
 
-Private Function CopiarBloque(ByVal src As Worksheet, ByVal dst As Worksheet, ByVal F0 As Long, ByVal fmax As Long, _
+Private Function CopiarBloque(ByVal src As Worksheet, ByVal dst As Worksheet, ByVal f0 As Long, ByVal fmax As Long, _
                               ByVal colKey As Long, ByVal ucol As Long) As Long
     Dim last As Long, v As Variant, i As Long, n As Long
     CopiarBloque = 0
-    last = UltimaFila(src, colKey, F0, fmax)
-    dst.Range(dst.Cells(F0, 1), dst.Cells(fmax, ucol)).ClearContents
-    If last < F0 Then Exit Function
-    v = src.Range(src.Cells(F0, 1), src.Cells(last, ucol)).Value
+    last = UltimaFila(src, colKey, f0, fmax)
+    dst.Range(dst.Cells(f0, 1), dst.Cells(fmax, ucol)).ClearContents
+    If last < f0 Then Exit Function
+    v = src.Range(src.Cells(f0, 1), src.Cells(last, ucol)).Value
     For i = 1 To UBound(v, 1)
         If IsError(v(i, 1)) Then v(i, 1) = Empty
-        If txt(v(i, colKey)) <> "" Then n = n + 1
+        If Txt(v(i, colKey)) <> "" Then n = n + 1
     Next i
-    dst.Range(dst.Cells(F0, 1), dst.Cells(last, ucol)).Value = v
+    dst.Range(dst.Cells(f0, 1), dst.Cells(last, ucol)).Value = v
     CopiarBloque = n
 End Function
 
@@ -140,7 +140,7 @@ Private Function PdfInforme(ByVal wb As Workbook) As String
     nom = wb.Name
     k = InStrRev(nom, ".")
     If k > 0 Then nom = Left(nom, k - 1)
-    archivo = carpeta & sep() & NombreSeguro(nom, 120) & ".pdf"
+    archivo = carpeta & Sep() & NombreSeguro(nom, 120) & ".pdf"
     Set ocultas = New Collection
     On Error GoTo Falla
     For Each ws In wb.Worksheets
@@ -179,7 +179,7 @@ Public Function EnviarA(ByVal almacen As Boolean, ByVal ruta As String, Optional
         h2 = "BD_PARTES"
         nombre = "4.15 (CONTROL DE EQUIPO MECÁNICO)"
     End If
-    If ruta = "" Then ruta = txt(Hoja("DATOS").Range(celda).Value)
+    If ruta = "" Then ruta = Txt(Hoja("DATOS").Range(celda).Value)
     If ruta <> "" Then
         On Error Resume Next
         If Dir(ruta) = "" Then ruta = ""

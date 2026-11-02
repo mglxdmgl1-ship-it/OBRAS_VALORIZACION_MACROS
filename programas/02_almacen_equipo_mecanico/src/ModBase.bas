@@ -236,16 +236,16 @@ Public Function Fecha(ByVal v As Variant) As Double
     If Fecha < 0 Then Fecha = 0
 End Function
 
-Public Function txt(ByVal v As Variant) As String
-    txt = ""
+Public Function Txt(ByVal v As Variant) As String
+    Txt = ""
     If IsEmpty(v) Then Exit Function
     If IsError(v) Then Exit Function
-    txt = Trim(CStr(v))
+    Txt = Trim(CStr(v))
 End Function
 
 Public Function Limpio(ByVal v As Variant) As String
     Dim s As String
-    s = txt(v)
+    s = Txt(v)
     s = Replace(s, vbCr, " ")
     s = Replace(s, vbLf, " ")
     s = Replace(s, vbTab, " ")
@@ -344,29 +344,29 @@ Public Function Hoja(ByVal nombre As String) As Worksheet
     Set Hoja = ThisWorkbook.Worksheets(nombre)
 End Function
 
-Public Function UltimaFila(ByVal ws As Worksheet, ByVal col As Long, ByVal F0 As Long, ByVal f1 As Long) As Long
+Public Function UltimaFila(ByVal ws As Worksheet, ByVal col As Long, ByVal f0 As Long, ByVal f1 As Long) As Long
     ' última fila con dato en la columna (entre f0 y f1); f0 - 1 si no hay datos
     Dim v As Variant, i As Long
-    UltimaFila = F0 - 1
-    v = ws.Range(ws.Cells(F0, col), ws.Cells(f1, col)).Value
+    UltimaFila = f0 - 1
+    v = ws.Range(ws.Cells(f0, col), ws.Cells(f1, col)).Value
     For i = UBound(v, 1) To 1 Step -1
-        If txt(v(i, 1)) <> "" Then
-            UltimaFila = F0 + i - 1
+        If Txt(v(i, 1)) <> "" Then
+            UltimaFila = f0 + i - 1
             Exit Function
         End If
     Next i
 End Function
 
-Public Function UltimaFilaVarias(ByVal ws As Worksheet, ByVal c1 As Long, ByVal c2 As Long, ByVal F0 As Long, _
+Public Function UltimaFilaVarias(ByVal ws As Worksheet, ByVal c1 As Long, ByVal c2 As Long, ByVal f0 As Long, _
                                  ByVal f1 As Long) As Long
     ' última fila con algún dato entre las columnas c1 y c2
     Dim v As Variant, i As Long, j As Long
-    UltimaFilaVarias = F0 - 1
-    v = ws.Range(ws.Cells(F0, c1), ws.Cells(f1, c2)).Value
+    UltimaFilaVarias = f0 - 1
+    v = ws.Range(ws.Cells(f0, c1), ws.Cells(f1, c2)).Value
     For i = UBound(v, 1) To 1 Step -1
         For j = 1 To UBound(v, 2)
-            If txt(v(i, j)) <> "" Then
-                UltimaFilaVarias = F0 + i - 1
+            If Txt(v(i, j)) <> "" Then
+                UltimaFilaVarias = f0 + i - 1
                 Exit Function
             End If
         Next j
@@ -458,10 +458,10 @@ End Function
 
 
 '========================================================================== CARPETAS Y PDF
-Public Function sep() As String
-    sep = "\"
+Public Function Sep() As String
+    Sep = "\"
     On Error Resume Next
-    sep = Application.PathSeparator
+    Sep = Application.PathSeparator
 End Function
 
 Public Function RutaLocal(ByVal p As String) As String
@@ -507,7 +507,7 @@ Public Function CrearCarpeta(ByVal p As String) As Boolean
     Dim partes() As String, i As Long, acc As String, s As String
     CrearCarpeta = False
     If p = "" Then Exit Function
-    s = sep()
+    s = Sep()
     If Right(p, 1) = s Then p = Left(p, Len(p) - 1)
     If ExisteCarpeta(p) Then
         CrearCarpeta = True
@@ -545,18 +545,18 @@ Public Function CarpetaSalida(ByVal subc As String) As String
     ' carpeta de los PDF: la de DATOS o, si está vacía, SALIDAS_AAAA_MM junto al programa
     Dim raiz As String, p As String
     CarpetaSalida = ""
-    raiz = txt(Hoja("DATOS").Range(D_CARPETA).Value)
+    raiz = Txt(Hoja("DATOS").Range(D_CARPETA).Value)
     If raiz = "" Then
         raiz = RutaLocal(ThisWorkbook.Path)
-        If raiz <> "" Then raiz = raiz & sep() & "SALIDAS_" & MesArchivo()
+        If raiz <> "" Then raiz = raiz & Sep() & "SALIDAS_" & MesArchivo()
     End If
     p = raiz
-    If subc <> "" Then p = raiz & sep() & subc
+    If subc <> "" Then p = raiz & Sep() & subc
     If Not CrearCarpeta(p) Then
         raiz = ElegirCarpeta("Elija la carpeta donde se guardarán los PDF")
         If raiz = "" Then Exit Function
         p = raiz
-        If subc <> "" Then p = raiz & sep() & subc
+        If subc <> "" Then p = raiz & Sep() & subc
         If Not CrearCarpeta(p) Then Exit Function
     End If
     CarpetaSalida = p
@@ -564,7 +564,7 @@ End Function
 
 Public Function CarpetaDe(ByVal ruta As String) As String
     Dim k As Long
-    k = InStrRev(ruta, sep())
+    k = InStrRev(ruta, Sep())
     If k > 0 Then CarpetaDe = Left(ruta, k - 1) Else CarpetaDe = ""
 End Function
 
@@ -572,12 +572,12 @@ Public Function RutaSugerida(ByVal subc As String, ByVal archivo As String) As S
     ' ruta propuesta para «Guardar como»: carpeta de GENERAR TODO o SALIDAS_AAAA_MM\subc
     Dim c As String
     If gCarpetaFija <> "" Then
-        RutaSugerida = gCarpetaFija & sep() & archivo
+        RutaSugerida = gCarpetaFija & Sep() & archivo
         Exit Function
     End If
     c = CarpetaSalida(subc)
     If c = "" Then c = RutaLocal(ThisWorkbook.Path)
-    RutaSugerida = c & sep() & archivo
+    RutaSugerida = c & Sep() & archivo
 End Function
 
 Public Function GuardarComo(ByVal sugerido As String, ByVal titulo As String, ByVal tipo As String) As String
@@ -606,11 +606,11 @@ End Function
 Public Function SubcarpetaPor(ByVal carpeta As String, ByVal nombre As String, ByVal sufijo As String) As String
     ' carpeta de los PDF individuales: ...\KARDEX\POR_INSUMO o ...\KARDEX_POR_INSUMO
     Dim ult As String
-    ult = Mid(carpeta, InStrRev(carpeta, sep()) + 1)
+    ult = Mid(carpeta, InStrRev(carpeta, Sep()) + 1)
     If UCase(ult) = UCase(nombre) Then
-        SubcarpetaPor = carpeta & sep() & sufijo
+        SubcarpetaPor = carpeta & Sep() & sufijo
     Else
-        SubcarpetaPor = carpeta & sep() & nombre & "_" & sufijo
+        SubcarpetaPor = carpeta & Sep() & nombre & "_" & sufijo
     End If
 End Function
 
@@ -624,7 +624,7 @@ Public Function ElegirCarpetaDesde(ByVal titulo As String, ByVal inicial As Stri
     On Error GoTo Falla
     Set fd = Application.FileDialog(4)
     fd.Title = titulo
-    If inicial <> "" Then fd.InitialFileName = inicial & sep()
+    If inicial <> "" Then fd.InitialFileName = inicial & Sep()
     If fd.Show = -1 Then ElegirCarpetaDesde = fd.SelectedItems(1)
     Exit Function
 Falla:
@@ -736,14 +736,14 @@ End Sub
 
 Public Function PonerLogo(ByVal ws As Worksheet, ByVal archivo As String, ByVal marco As String) As Boolean
     ' reemplaza la imagen LOGO de la hoja por la del archivo, centrada dentro del marco (celdas)
-    Dim shp As Object, pic As Object, l As Double, t As Double, w As Double, h As Double, r As Double
+    Dim shp As Object, pic As Object, L As Double, T As Double, W As Double, H As Double, r As Double
     PonerLogo = False
     On Error GoTo Falla
-    l = ws.Range(marco).Left + 2
-    t = ws.Range(marco).Top + 2
-    w = ws.Range(marco).Width - 4
-    h = ws.Range(marco).Height - 4
-    Set pic = ws.Shapes.AddPicture(archivo, 0, -1, l, t, -1, -1)
+    L = ws.Range(marco).Left + 2
+    T = ws.Range(marco).Top + 2
+    W = ws.Range(marco).Width - 4
+    H = ws.Range(marco).Height - 4
+    Set pic = ws.Shapes.AddPicture(archivo, 0, -1, L, T, -1, -1)
     For Each shp In ws.Shapes
         If shp.Name = "LOGO" Then
             shp.Delete
@@ -751,12 +751,12 @@ Public Function PonerLogo(ByVal ws As Worksheet, ByVal archivo As String, ByVal 
         End If
     Next shp
     pic.LockAspectRatio = -1
-    r = w / pic.Width
-    If h / pic.Height < r Then r = h / pic.Height
+    r = W / pic.Width
+    If H / pic.Height < r Then r = H / pic.Height
     pic.Width = pic.Width * r
-    If pic.Height > h Then pic.Height = h
-    pic.Left = l + (w - pic.Width) / 2
-    pic.Top = t + (h - pic.Height) / 2
+    If pic.Height > H Then pic.Height = H
+    pic.Left = L + (W - pic.Width) / 2
+    pic.Top = T + (H - pic.Height) / 2
     pic.Placement = 2
     pic.Name = "LOGO"
     PonerLogo = True
