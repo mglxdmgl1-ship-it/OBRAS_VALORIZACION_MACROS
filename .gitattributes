@@ -1,0 +1,16 @@
+# Fuentes VBA: en GitHub se guardan en UTF-8 (se leen bien en el navegador);
+# al clonar en Windows se escriben en CP1252 + CRLF, que es lo que espera el editor de VBA (Importar archivo).
+*.bas text eol=crlf working-tree-encoding=CP1252
+*.cls text eol=crlf working-tree-encoding=CP1252
+*.frm text eol=crlf working-tree-encoding=CP1252
+
+# Libros de Excel: binarios
+*.xlsm binary
+*.xlsx binary
+*.xls  binary
+*.pdf  binary
+
+# Texto
+*.md   text eol=lf
+*.py   text eol=lf
+*.json text eol=lf

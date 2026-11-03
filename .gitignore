@@ -1,0 +1,19 @@
+# Archivos temporales de Office
+~$*
+*.tmp
+*.bak
+# Salidas que generan los programas (PDF, kardex, bincard, partes)
+SALIDAS_*/
+**/RESPALDOS/
+# Python
+__pycache__/
+*.pyc
+.venv/
+# Sistema
+Thumbs.db
+desktop.ini
+.DS_Store
+# Web (cuando se cree)
+node_modules/
+dist/
+.env
