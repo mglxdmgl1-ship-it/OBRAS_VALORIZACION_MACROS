@@ -1,5 +1,11 @@
 # Registro de cambios
 
+## 2026-11-03 – Página web
+- `web/`: aplicación web estática (Netlify) que reúne la lógica de los tres programas: presupuesto, A.C.U., catálogo de precios, calculadora de insumos con redondeo y cantidades editables, metrados diarios con estados del control, almacén (salidas desde A.C.U. × metrado, kardex, bincard, 4.10–4.12), equipo mecánico (partes, 4.15), valorización mensual (4.3, 4.4, 4.5, curva S, cierre), cronograma 4.13 y reportes PDF / Excel con fórmulas.
+- Importa presupuestos y A.C.U. de S10/Delphin (y de los propios libros de macros), metrados, movimientos, precios y cronogramas desde Excel, y el JSON de la valorización.
+- `herramientas/exportar_obra_web.py`: arma el JSON de la obra de ejemplo para la web.
+- Pruebas automáticas (`node --test web/tests/*.test.mjs`) con los criterios de aceptación del prompt.
+
 ## 2026-11-02 – Organización del repositorio
 - Se reúnen los programas de `05_OBRAS\04_INFORMES\10_PROGRAMAS_MACROS` en `programas/` (control de metrados, almacén y equipo, valorización mensual).
 - Código VBA extraído de cada `.xlsm` a `src/` (`herramientas/extraer_vba.py`). El de almacén v008 coincide con la carpeta original `VBA_FUENTES`.

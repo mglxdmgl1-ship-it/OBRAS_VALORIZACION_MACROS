@@ -1,0 +1,10 @@
+{
+  "name": "sgo-valorizaciones-web",
+  "private": true,
+  "type": "module",
+  "description": "Costos, presupuestos, control diario y valorización de obras (página estática).",
+  "scripts": {
+    "test": "node --test tests/*.test.mjs",
+    "start": "cd public && python3 -m http.server 8765"
+  }
+}

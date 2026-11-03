@@ -31,7 +31,7 @@ EXPEDIENTE TÉCNICO (S10 / Delphin / Kennedy)
 └───────────────────────────────────────────┘  4.13 cronograma, F-12B
         │  exportar_valorizacion_json.py
         ▼
-   datos/<obra>/valorizacion_NN_AAAA-MM.json  ──►  PÁGINA WEB (por construir: prompts/PROMPT_PAGINA_WEB.md)
+   datos/<obra>/valorizacion_NN_AAAA-MM.json  ──►  PÁGINA WEB (web/, publicada en Netlify)
 ```
 
 Más detalle en [docs/01_FLUJO_GENERAL.md](docs/01_FLUJO_GENERAL.md).
@@ -46,6 +46,7 @@ Más detalle en [docs/01_FLUJO_GENERAL.md](docs/01_FLUJO_GENERAL.md).
 | [`datos/iei881/`](datos/iei881/) | Valorización N° 01 exportada a JSON (653 partidas, cronograma, curva S, resumen). |
 | [`docs/`](docs/) | Flujo, descripción de cada programa, cálculo de la valorización, modelo de datos para la web e inventario del expediente técnico. |
 | [`herramientas/`](herramientas/) | `extraer_vba.py` (saca el VBA de un `.xlsm` sin abrir Excel) y `exportar_valorizacion_json.py`. |
+| [`web/`](web/) | **Página web** de costos, presupuestos, A.C.U., calculadora de insumos, metrados diarios, almacén, equipos y valorización, con reportes PDF y Excel con fórmulas. Ver [web/README.md](web/README.md). |
 | [`prompts/PROMPT_PAGINA_WEB.md`](prompts/PROMPT_PAGINA_WEB.md) | Prompt listo para pedir la página web de valorizaciones. |
 
 ## Uso rápido
