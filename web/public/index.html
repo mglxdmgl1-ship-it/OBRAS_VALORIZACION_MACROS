@@ -9,6 +9,7 @@
   <link rel="stylesheet" href="css/app.css">
 </head>
 <body>
+  <div id="acceso" hidden></div>
   <div id="app">
     <aside id="lateral">
       <div class="marca">
@@ -16,7 +17,7 @@
         <div><strong>SGO</strong><span>Costos · Presupuestos · Valorizaciones</span></div>
       </div>
       <nav id="menu"></nav>
-      <div class="lateral-pie">Datos guardados en este navegador.<br>Haga respaldos con frecuencia.</div>
+      <div class="lateral-pie" id="lateral-pie">Obras por administración directa.<br>Descargue respaldos con frecuencia.</div>
     </aside>
     <div id="principal">
       <header id="barra">
@@ -27,6 +28,7 @@
         </div>
         <div class="barra-der">
           <span id="estado-guardado" class="estado-guardado">—</span>
+          <div id="usuario" class="usuario" hidden></div>
         </div>
       </header>
       <main id="vista"><div class="cargando-inicial"><div class="spinner"></div>Cargando…</div></main>
@@ -36,6 +38,7 @@
   <script src="vendor/jspdf.umd.min.js" defer></script>
   <script src="vendor/jspdf.plugin.autotable.min.js" defer></script>
   <script src="vendor/chart.umd.js" defer></script>
+  <script src="vendor/supabase.js" defer></script>
   <script type="module" src="js/app.js"></script>
 </body>
 </html>

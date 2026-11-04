@@ -47,6 +47,7 @@ Más detalle en [docs/01_FLUJO_GENERAL.md](docs/01_FLUJO_GENERAL.md).
 | [`docs/`](docs/) | Flujo, descripción de cada programa, cálculo de la valorización, modelo de datos para la web e inventario del expediente técnico. |
 | [`herramientas/`](herramientas/) | `extraer_vba.py` (saca el VBA de un `.xlsm` sin abrir Excel) y `exportar_valorizacion_json.py`. |
 | [`web/`](web/) | **Página web** de costos, presupuestos, A.C.U., calculadora de insumos, metrados diarios, almacén, equipos y valorización, con reportes PDF y Excel con fórmulas. Ver [web/README.md](web/README.md). |
+| [`supabase/`](supabase/) | Base de datos en la nube de la página web: migraciones SQL (tablas `sgo_*`, permisos por rol con RLS, respaldo diario) y la función `sgo-usuarios`. |
 | [`prompts/PROMPT_PAGINA_WEB.md`](prompts/PROMPT_PAGINA_WEB.md) | Prompt listo para pedir la página web de valorizaciones. |
 
 ## Uso rápido

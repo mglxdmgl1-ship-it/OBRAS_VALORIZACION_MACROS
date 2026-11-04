@@ -29,7 +29,7 @@ export function render(cont) {
   const nMan = Object.keys(per.manual || {}).length;
   cont.innerHTML = `
     ${cab('Valorización mensual', `Valorización N° <b>${String(per.numero).padStart(2, '0')}</b> · del ${fFecha(per.del)} al ${fFecha(per.al)} · ${nombreMes(mesDe(per.al))} · ${abierto ? '<span class="badge badge-ok">ABIERTA</span>' : '<span class="badge">CERRADA</span>'}`,
-      `<select id="sel-per">${opcionesPeriodo(k)}</select>
+      `<select id="sel-per" data-libre>${opcionesPeriodo(k)}</select>
        ${abierto ? `<button class="btn" id="b-edit">${icono('editar')}Periodo</button><button class="btn btn-oro" id="b-cerrar">${icono('candado')}Cerrar valorización</button>` : `${ultimo ? `<button class="btn" id="b-reabrir">Reabrir</button>` : ''}`}
        ${ultimo && !abierto ? `<button class="btn btn-primario" id="b-nuevo">${icono('mas')}Siguiente valorización</button>` : ''}`)}
     <div class="tarjetas">

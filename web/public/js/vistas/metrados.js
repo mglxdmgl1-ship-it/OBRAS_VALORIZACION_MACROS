@@ -150,7 +150,7 @@ function vistaDia(box) {
   const fer = (o.feriados || []).find((x) => x.fecha === dia);
   box.innerHTML = `
     <div class="filtros">
-      <button class="btn btn-sm" id="d-ant">‹</button><input type="date" id="d-fecha" value="${dia}"><button class="btn btn-sm" id="d-sig">›</button>
+      <button class="btn btn-sm" id="d-ant" data-libre>‹</button><input type="date" id="d-fecha" value="${dia}"><button class="btn btn-sm" id="d-sig" data-libre>›</button>
       <span class="badge badge-azul">${DIAS[diaSemana(dia)]}</span>${nDia ? `<span class="badge">Día de obra N° ${nDia}</span>` : ''}${fer ? `<span class="badge badge-alerta">Feriado: ${esc(fer.descripcion)}</span>` : ''}${fuera ? '<span class="badge badge-error">Fuera del plazo</span>' : ''}
       <span style="flex:1"></span><button class="btn btn-primario btn-sm" id="d-add">${icono('mas')}Agregar partidas</button>${btnExport('dia', 'Planilla')}
     </div>

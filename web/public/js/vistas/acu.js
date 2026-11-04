@@ -22,7 +22,7 @@ export function render(cont, params) {
     ${cab('Análisis de costos unitarios (A.C.U.)', `${m.partidasP.length - sinACU} de ${m.partidasP.length} partidas con análisis · ${o.insumos.length} insumos en el catálogo. Al cambiar el precio de un insumo se actualizan <b>todos</b> los A.C.U. que lo usan.`,
       `<button class="btn btn-oro" id="b-imp">${icono('importar')}Importar A.C.U. (Excel)</button>${btnExport('todos', 'Todos')}`)}
     <div class="rejilla-3" style="grid-template-columns: minmax(280px, 1fr) 2.4fr">
-      <div class="panel" style="margin:0"><div class="panel-cab"><input type="search" id="a-q" placeholder="Buscar partida…" value="${esc(q)}" style="flex:1"><label class="chk" style="font-size:12px"><input type="checkbox" id="a-sin" ${soloSin ? 'checked' : ''}> sin A.C.U.</label></div>
+      <div class="panel" style="margin:0"><div class="panel-cab"><input type="search" id="a-q" placeholder="Buscar partida…" value="${esc(q)}" style="flex:1"><label class="chk" style="font-size:12px"><input type="checkbox" id="a-sin" data-libre ${soloSin ? 'checked' : ''}> sin A.C.U.</label></div>
         <div class="tabla-cont" style="border:0;border-radius:0;max-height:calc(100vh - 250px)"><table class="t"><tbody id="a-lista"></tbody></table></div></div>
       <div id="a-det"></div>
     </div>${datalistInsumos()}`;

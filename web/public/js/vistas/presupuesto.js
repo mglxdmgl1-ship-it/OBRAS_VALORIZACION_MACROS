@@ -26,7 +26,7 @@ export function render(cont) {
   }
   const nP = m.partidasP.length;
   cont.innerHTML = `
-    ${cab('Presupuesto', `${nP} partidas y ${o.partidas.length - nP} títulos. Costo directo <b>S/ ${fmt(m.costoDirecto())}</b> · presupuesto total <b>S/ ${fmt(m.presupuestoTotal())}</b>. Puede digitarlo o importarlo desde Excel.`,
+    ${cab('Presupuesto', `${nP} partidas y ${o.partidas.length - nP} títulos. Costo directo <b>S/ ${fmt(m.costoDirecto())}</b> · presupuesto total <b>S/ ${fmt(m.presupuestoTotal())}</b>.${S.soloLectura ? '' : ' Puede digitarlo o importarlo desde Excel.'}`,
       `<button class="btn btn-oro" id="b-imp">${icono('importar')}Importar Excel</button><button class="btn" id="b-tit">${icono('mas')}Título</button><button class="btn btn-primario" id="b-par">${icono('mas')}Partida</button>${btnExport('pres')}`)}
     ${!o.partidas.length ? `<div class="panel"><div class="vacio"><h3>Presupuesto vacío</h3><p>Importe el presupuesto exportado de S10, Delphin, Kennedy u otro programa (Excel .xlsx con columnas ITEM, DESCRIPCIÓN, UND, METRADO, PRECIO, PARCIAL), o agregue títulos y partidas a mano.</p><p><button class="btn btn-oro" id="b-imp2">${icono('importar')}Importar presupuesto</button> <button class="btn" id="b-plant">${icono('excel')}Descargar plantilla</button></p></div></div>` : `
     <div class="filtros">

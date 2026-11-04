@@ -8,6 +8,22 @@ Es una página estática (HTML + JavaScript, sin servidor): se publica en Netlif
 y también funciona abriéndola con cualquier servidor local. Los datos se guardan en el navegador (IndexedDB); use **Respaldo**
 para descargar la obra completa en un `.json` y llevarla a otra computadora.
 
+## Inicio de sesión y roles (Supabase)
+
+Si `public/js/config.js` tiene la URL y la clave pública del proyecto de Supabase, la página pide **iniciar sesión** y guarda las obras en la nube (tabla `sgo_obras`); si se dejan vacías, funciona sin inicio de sesión y guarda solo en el navegador.
+
+| Rol | Puede |
+|---|---|
+| **Administrador** | Todo: crear, importar y editar obras, presupuesto, A.C.U., metrados, almacén, equipos, valorizaciones; crear usuarios, cambiar su rol, activarlos o desactivarlos, restablecer contraseñas y asignar a cada cliente sus obras; ver y restaurar los respaldos automáticos. |
+| **Cliente** | Consultar las obras que le asignaron (todas las pantallas en modo lectura) y descargar los reportes PDF / Excel. No ve la calculadora ni la gestión de usuarios y la base de datos rechaza cualquier cambio suyo (RLS). |
+
+- Las cuentas las crea el administrador en **Usuarios y accesos** (no hay registro público). La primera vez el usuario debe cambiar su contraseña temporal.
+- Cada cambio se guarda en el navegador y se sube a la nube a los pocos segundos. Si no hay internet, queda en el equipo y se sube al volver la conexión.
+- **Cambios simultáneos**: cada obra tiene un número de versión; si otra persona guardó antes, se pregunta si usar la versión del servidor o conservar la propia (con opción de descargar la propia antes de decidir).
+- **Respaldo automático**: una copia por día de cada obra (se guardan las 30 últimas), que el administrador puede descargar o restaurar en **Obras**.
+- Base de datos: `supabase/migrations/` (tablas `sgo_usuarios`, `sgo_obras`, `sgo_accesos`, `sgo_respaldos`, funciones de permisos, disparadores y políticas RLS). Función de usuarios: `supabase/functions/sgo-usuarios/` (crea cuentas, restablece contraseñas y quita accesos con la clave de servicio, solo para administradores).
+- El proyecto de Supabase se comparte con otra aplicación: SGO usa solo sus tablas `sgo_*` y no modifica las demás; las cuentas de correo (y sus contraseñas) son comunes a ambas aplicaciones, pero el acceso a SGO depende solo de `sgo_usuarios`.
+
 ## Módulos
 
 | Pantalla | Qué hace | Equivale a |
@@ -47,6 +63,12 @@ cd web/public && python3 -m http.server 8765
 node web/tests/navegador.mjs http://localhost:8765/ salida_prueba
 ```
 
+Prueba del inicio de sesión y los roles con un Supabase simulado en memoria (`tests/supabase_falso.js`, con las mismas reglas de permisos): el administrador carga una obra, la edita (versión 2 y respaldo), crea un cliente y le asigna la obra; el cliente cambia su contraseña temporal, ve todo bloqueado, exporta y recibe las versiones nuevas; conflicto de versiones; cliente desactivado.
+
+```bash
+node web/tests/nube.mjs http://localhost:8765/ salida_nube
+```
+
 Las fórmulas de los Excel exportados se verificaron recalculándolos en LibreOffice: dan los mismos valores que la página.
 
 ## Datos de ejemplo
@@ -69,8 +91,12 @@ web/public/js/calc.js        motor de cálculo (presupuesto, A.C.U., estados, va
 web/public/js/importar.js    importadores Excel/CSV/JSON
 web/public/js/reportes.js    definición de cada cuadro
 web/public/js/exportar.js    PDF (jsPDF) y Excel con fórmulas (ExcelJS)
-web/public/js/store.js       guardado en IndexedDB
+web/public/js/store.js       estado, guardado en IndexedDB y sincronización con la nube (versiones, sin conexión)
+web/public/js/nube.js        consultas a Supabase (sesión, obras, usuarios, accesos, respaldos)
+web/public/js/acceso.js      pantallas de ingreso, cambio de contraseña y sin acceso
+web/public/js/config.js      URL y clave pública de Supabase
 web/public/js/vistas/*.js    pantallas
-web/public/vendor/           ExcelJS 4.4.0, jsPDF 2.5.2, AutoTable 3.8.4, Chart.js 4.4.6
+web/public/vendor/           ExcelJS 4.4.0, jsPDF 2.5.2, AutoTable 3.8.4, Chart.js 4.4.6, supabase-js 2.45.4
+supabase/                    migraciones SQL y función sgo-usuarios (en la raíz del repositorio)
 web/tests/                   pruebas
 ```

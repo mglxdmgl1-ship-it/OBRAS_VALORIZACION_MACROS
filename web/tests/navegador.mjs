@@ -12,6 +12,8 @@ mkdirSync(OUT, { recursive: true });
 const errores = [];
 const browser = await chromium.launch();
 const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 }, acceptDownloads: true });
+// esta prueba usa el modo local (sin inicio de sesión): se vacía la configuración de Supabase
+await ctx.route('**/js/config.js', (r) => r.fulfill({ body: "export const SUPABASE = { url: '', clave: '' };", contentType: 'application/javascript' }));
 const page = await ctx.newPage();
 page.on('console', (m) => { if (m.type() === 'error') errores.push('[console] ' + m.text()); });
 page.on('pageerror', (e) => errores.push('[pageerror] ' + e.message));
